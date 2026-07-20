@@ -129,6 +129,8 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, pds.ErrEvaluationNotFound):
 		writeError(w, http.StatusNotFound, "evaluation_not_found")
+	case errors.Is(err, pds.ErrConcurrentModification):
+		writeError(w, http.StatusConflict, "concurrent_modification")
 	case errors.Is(err, evaluation.ErrRequiredRulesIncomplete),
 		errors.Is(err, evaluation.ErrInvalidStateTransition),
 		errors.Is(err, evaluation.ErrRuleOutcomeConflict):
