@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -62,6 +64,16 @@ func TestCompletionRejectsMissingRequiredRule(t *testing.T) {
 
 func TestHealth(t *testing.T) {
 	perform(t, NewHandler(pds.NewService(nil)), http.MethodGet, "/healthz", "", http.StatusOK)
+}
+
+func TestReadiness(t *testing.T) {
+	service := pds.NewService(nil)
+	perform(t, NewHandlerWithReadiness(service, ReadinessFunc(func(context.Context) error {
+		return nil
+	})), http.MethodGet, "/readyz", "", http.StatusOK)
+	perform(t, NewHandlerWithReadiness(service, ReadinessFunc(func(context.Context) error {
+		return errors.New("database unavailable")
+	})), http.MethodGet, "/readyz", "", http.StatusServiceUnavailable)
 }
 
 func TestServiceErrorMapping(t *testing.T) {
