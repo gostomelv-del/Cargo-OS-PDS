@@ -29,6 +29,10 @@ inclusive `RANGE`, and absolute `TOLERANCE` evaluation over JSON Pointer values.
 Numeric operators use exact decimal rational arithmetic rather than floating
 point, and missing or ambiguous observations produce explicit inconclusive
 outcomes.
+The temporal `SEQUENCE` operator orders observations by `ObservedAt` and
+Evidence ID, enforces canonical step values, and supports maximum inter-step
+and total-duration windows. Missing steps are inconclusive; wrong order,
+values, or timing fail explicitly.
 
 ## Requirements
 
