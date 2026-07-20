@@ -113,6 +113,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.findEvidence(w, r, strings.TrimPrefix(r.URL.Path, evidencePrefix))
 		return
 	}
+	const sessionPrefix = "/v1/sessions/"
+	if strings.HasPrefix(r.URL.Path, sessionPrefix) && r.Method == http.MethodGet {
+		parts := strings.Split(strings.TrimPrefix(r.URL.Path, sessionPrefix), "/")
+		if len(parts) == 2 && parts[1] == "evidence" {
+			h.listSessionEvidence(w, r, parts[0])
+			return
+		}
+	}
 	const prefix = "/v1/evaluations/"
 	if !strings.HasPrefix(r.URL.Path, prefix) {
 		writeError(w, http.StatusNotFound, "not_found")
@@ -194,6 +202,20 @@ func (h *Handler) findEvidence(w http.ResponseWriter, r *http.Request, value str
 		return
 	}
 	writeJSON(w, http.StatusOK, snapshot)
+}
+
+func (h *Handler) listSessionEvidence(w http.ResponseWriter, r *http.Request, value string) {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_session_id")
+		return
+	}
+	snapshots, err := h.evidenceService.ListBySession(r.Context(), id)
+	if err != nil {
+		h.writeEvidenceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, snapshots)
 }
 
 func (h *Handler) writeEvidenceError(w http.ResponseWriter, err error) {

@@ -57,6 +57,9 @@ func TestEvidenceRepositoryRequiresDatabase(t *testing.T) {
 	if _, err := store.FindEvidence(context.Background(), uuid.New()); !errors.Is(err, ErrDatabaseRequired) {
 		t.Fatalf("expected database-required error, got %v", err)
 	}
+	if _, err := store.ListEvidenceBySession(context.Background(), uuid.New()); !errors.Is(err, ErrDatabaseRequired) {
+		t.Fatalf("expected database-required error, got %v", err)
+	}
 }
 
 func TestDecodeEvidenceRejectsTampering(t *testing.T) {

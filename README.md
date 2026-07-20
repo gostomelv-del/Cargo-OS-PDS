@@ -54,6 +54,8 @@ The first Evidence API endpoints are:
 
 - `POST /v1/evidence` accepts and canonicalizes an Evidence Object.
 - `GET /v1/evidence/{evidence_id}` returns the exact accepted object.
+- `GET /v1/sessions/{session_id}/evidence` returns the session Evidence Set in
+  deterministic observation-time and Evidence-ID order.
 
 ## Verification
 

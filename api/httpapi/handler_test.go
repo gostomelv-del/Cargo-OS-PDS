@@ -114,6 +114,14 @@ func TestEvidenceIngestRetrieveAndConflict(t *testing.T) {
 	if retrieved.Integrity.PayloadDigest != accepted.Integrity.PayloadDigest {
 		t.Fatal("retrieved evidence digest changed")
 	}
+	listed := perform(t, handler, http.MethodGet, "/v1/sessions/"+sessionID.String()+"/evidence", "", http.StatusOK)
+	var evidenceSet []evidence.Snapshot
+	if err = json.Unmarshal(listed.Body.Bytes(), &evidenceSet); err != nil {
+		t.Fatal(err)
+	}
+	if len(evidenceSet) != 1 || evidenceSet[0].EvidenceID != evidenceID {
+		t.Fatalf("unexpected session evidence set: %#v", evidenceSet)
+	}
 	conflict := strings.Replace(body, `"value":25`, `"value":26`, 1)
 	perform(t, handler, http.MethodPost, "/v1/evidence", conflict, http.StatusConflict)
 }
@@ -123,6 +131,7 @@ func TestEvidenceValidationAndNotFound(t *testing.T) {
 	perform(t, handler, http.MethodPost, "/v1/evidence", `{}`, http.StatusBadRequest)
 	perform(t, handler, http.MethodGet, "/v1/evidence/not-a-uuid", "", http.StatusBadRequest)
 	perform(t, handler, http.MethodGet, "/v1/evidence/"+uuid.New().String(), "", http.StatusNotFound)
+	perform(t, handler, http.MethodGet, "/v1/sessions/not-a-uuid/evidence", "", http.StatusBadRequest)
 }
 
 func TestServiceErrorMapping(t *testing.T) {

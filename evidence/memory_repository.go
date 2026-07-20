@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"sort"
 	"sync"
 	"time"
 
@@ -48,6 +49,35 @@ func (m *MemoryRepository) FindEvidence(_ context.Context, id uuid.UUID) (*Objec
 		return nil, ErrNotFound
 	}
 	return Rehydrate(snapshot)
+}
+
+func (m *MemoryRepository) ListEvidenceBySession(_ context.Context, sessionID uuid.UUID) ([]*Object, error) {
+	if sessionID == uuid.Nil {
+		return nil, ErrSessionIDRequired
+	}
+	m.mu.RLock()
+	snapshots := make([]Snapshot, 0)
+	for _, snapshot := range m.objects {
+		if snapshot.SessionID == sessionID {
+			snapshots = append(snapshots, copySnapshot(snapshot))
+		}
+	}
+	m.mu.RUnlock()
+	sort.Slice(snapshots, func(left, right int) bool {
+		if snapshots[left].ObservedAt.Equal(snapshots[right].ObservedAt) {
+			return snapshots[left].EvidenceID.String() < snapshots[right].EvidenceID.String()
+		}
+		return snapshots[left].ObservedAt.Before(snapshots[right].ObservedAt)
+	})
+	objects := make([]*Object, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		object, err := Rehydrate(snapshot)
+		if err != nil {
+			return nil, err
+		}
+		objects = append(objects, object)
+	}
+	return objects, nil
 }
 
 func snapshotsEqual(left, right Snapshot) bool {
