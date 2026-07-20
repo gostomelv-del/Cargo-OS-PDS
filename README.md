@@ -8,6 +8,8 @@ source identity, session binding, canonical JSON payloads, provenance,
 confidence metadata, version metadata, and SHA-256 integrity verification.
 Accepted Evidence Objects can be stored idempotently in PostgreSQL; database
 triggers prevent their update or deletion after acceptance.
+The Evidence application service controls receipt time and schema/runtime
+versions and provides the same repository contract in memory and PostgreSQL.
 
 ## Requirements
 
