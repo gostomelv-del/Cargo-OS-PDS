@@ -10,6 +10,9 @@ Accepted Evidence Objects can be stored idempotently in PostgreSQL; database
 triggers prevent their update or deletion after acceptance.
 The Evidence application service controls receipt time and schema/runtime
 versions and provides the same repository contract in memory and PostgreSQL.
+The domain qualification layer evaluates each object against an explicit,
+versioned policy and records deterministic `QUALIFIED`, `REJECTED`, or
+`UNAVAILABLE` results with machine-readable reason codes.
 
 ## Requirements
 
