@@ -3,11 +3,15 @@ package uuid
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
+	"strings"
 )
 
 type UUID [16]byte
 
 var Nil UUID
+
+var ErrInvalidUUID = errors.New("uuid: invalid UUID")
 
 func New() UUID {
 	var u UUID
@@ -30,4 +34,34 @@ func (u UUID) String() string {
 	b[23] = '-'
 	hex.Encode(b[24:36], u[10:16])
 	return string(b)
+}
+
+func Parse(value string) (UUID, error) {
+	compact := strings.ReplaceAll(strings.TrimSpace(value), "-", "")
+	if len(compact) != 32 {
+		return Nil, ErrInvalidUUID
+	}
+	decoded, err := hex.DecodeString(compact)
+	if err != nil {
+		return Nil, ErrInvalidUUID
+	}
+	var id UUID
+	copy(id[:], decoded)
+	return id, nil
+}
+
+func (u UUID) MarshalText() ([]byte, error) {
+	return []byte(u.String()), nil
+}
+
+func (u *UUID) UnmarshalText(value []byte) error {
+	if u == nil {
+		return ErrInvalidUUID
+	}
+	parsed, err := Parse(string(value))
+	if err != nil {
+		return err
+	}
+	*u = parsed
+	return nil
 }
