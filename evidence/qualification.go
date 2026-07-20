@@ -29,17 +29,20 @@ const (
 type QualificationReasonCode string
 
 const (
-	ReasonEvidenceUnavailable QualificationReasonCode = "EVIDENCE_UNAVAILABLE"
-	ReasonIntegrityInvalid    QualificationReasonCode = "INTEGRITY_INVALID"
-	ReasonSourceUntrusted     QualificationReasonCode = "SOURCE_UNTRUSTED"
-	ReasonTypeNotAllowed      QualificationReasonCode = "TYPE_NOT_ALLOWED"
-	ReasonTimestampFuture     QualificationReasonCode = "TIMESTAMP_FUTURE"
-	ReasonEvidenceExpired     QualificationReasonCode = "EVIDENCE_EXPIRED"
-	ReasonConfidenceMissing   QualificationReasonCode = "CONFIDENCE_MISSING"
-	ReasonConfidenceLow       QualificationReasonCode = "CONFIDENCE_LOW"
-	ReasonProvenanceMissing   QualificationReasonCode = "PROVENANCE_MISSING"
-	ReasonPayloadFieldMissing QualificationReasonCode = "PAYLOAD_FIELD_MISSING"
-	ReasonAcquisitionDenied   QualificationReasonCode = "ACQUISITION_DENIED"
+	ReasonEvidenceUnavailable    QualificationReasonCode = "EVIDENCE_UNAVAILABLE"
+	ReasonIntegrityInvalid       QualificationReasonCode = "INTEGRITY_INVALID"
+	ReasonSourceUntrusted        QualificationReasonCode = "SOURCE_UNTRUSTED"
+	ReasonTypeNotAllowed         QualificationReasonCode = "TYPE_NOT_ALLOWED"
+	ReasonTimestampFuture        QualificationReasonCode = "TIMESTAMP_FUTURE"
+	ReasonEvidenceExpired        QualificationReasonCode = "EVIDENCE_EXPIRED"
+	ReasonConfidenceMissing      QualificationReasonCode = "CONFIDENCE_MISSING"
+	ReasonConfidenceLow          QualificationReasonCode = "CONFIDENCE_LOW"
+	ReasonProvenanceMissing      QualificationReasonCode = "PROVENANCE_MISSING"
+	ReasonPayloadFieldMissing    QualificationReasonCode = "PAYLOAD_FIELD_MISSING"
+	ReasonAcquisitionDenied      QualificationReasonCode = "ACQUISITION_DENIED"
+	ReasonSessionMismatch        QualificationReasonCode = "SESSION_MISMATCH"
+	ReasonDuplicateObservation   QualificationReasonCode = "DUPLICATE_OBSERVATION"
+	ReasonConflictingObservation QualificationReasonCode = "CONFLICTING_OBSERVATION"
 )
 
 type QualificationReason struct {
@@ -53,6 +56,15 @@ type QualificationResult struct {
 	EvaluatedAt   time.Time             `json:"evaluated_at"`
 	PolicyVersion string                `json:"policy_version"`
 	Reasons       []QualificationReason `json:"reasons,omitempty"`
+}
+
+type SessionQualificationResult struct {
+	SessionID     uuid.UUID             `json:"session_id"`
+	Status        QualificationStatus   `json:"status"`
+	EvaluatedAt   time.Time             `json:"evaluated_at"`
+	PolicyVersion string                `json:"policy_version"`
+	Reasons       []QualificationReason `json:"reasons,omitempty"`
+	Evidence      []QualificationResult `json:"evidence"`
 }
 
 type QualificationPolicy struct {
@@ -156,6 +168,103 @@ func (q *Qualifier) Qualify(object *Object, evaluatedAt time.Time) (Qualificatio
 	}
 	if len(result.Reasons) > 0 {
 		result.Status = QualificationRejected
+	}
+	return result, nil
+}
+
+// QualifySet evaluates a complete session Evidence Set in deterministic order.
+// Evidence from the same source, type, and observation instant is rejected as
+// a duplicate when its payload digest repeats, or as a conflict when payloads
+// differ. The first identical observation remains canonical.
+func (q *Qualifier) QualifySet(sessionID uuid.UUID, objects []*Object, evaluatedAt time.Time) (SessionQualificationResult, error) {
+	if sessionID == uuid.Nil {
+		return SessionQualificationResult{}, ErrSessionIDRequired
+	}
+	if evaluatedAt.IsZero() {
+		return SessionQualificationResult{}, ErrQualificationTimeRequired
+	}
+	ordered := append([]*Object(nil), objects...)
+	sort.SliceStable(ordered, func(left, right int) bool {
+		if ordered[left] == nil {
+			return false
+		}
+		if ordered[right] == nil {
+			return true
+		}
+		leftSnapshot := ordered[left].Snapshot()
+		rightSnapshot := ordered[right].Snapshot()
+		if leftSnapshot.ObservedAt.Equal(rightSnapshot.ObservedAt) {
+			return leftSnapshot.EvidenceID.String() < rightSnapshot.EvidenceID.String()
+		}
+		return leftSnapshot.ObservedAt.Before(rightSnapshot.ObservedAt)
+	})
+	result := SessionQualificationResult{
+		SessionID: sessionID, Status: QualificationQualified,
+		EvaluatedAt: evaluatedAt.UTC(), PolicyVersion: q.policy.Version,
+		Evidence: make([]QualificationResult, 0, len(ordered)),
+	}
+	if len(ordered) == 0 {
+		result.Status = QualificationUnavailable
+		result.Reasons = []QualificationReason{{Code: ReasonEvidenceUnavailable}}
+		return result, nil
+	}
+
+	type observation struct {
+		index  int
+		digest string
+	}
+	groups := make(map[string][]observation)
+	for _, object := range ordered {
+		qualified, err := q.Qualify(object, result.EvaluatedAt)
+		if err != nil {
+			return SessionQualificationResult{}, err
+		}
+		index := len(result.Evidence)
+		result.Evidence = append(result.Evidence, qualified)
+		if object == nil {
+			continue
+		}
+		snapshot := object.Snapshot()
+		if snapshot.SessionID != sessionID {
+			result.Evidence[index].Reasons = append(result.Evidence[index].Reasons,
+				QualificationReason{Code: ReasonSessionMismatch, Field: "session_id"})
+			continue
+		}
+		key := snapshot.SourceID + "\x00" + string(snapshot.EvidenceType) + "\x00" + snapshot.ObservedAt.UTC().Format(time.RFC3339Nano)
+		groups[key] = append(groups[key], observation{index: index, digest: snapshot.Integrity.PayloadDigest})
+	}
+
+	for _, group := range groups {
+		if len(group) < 2 {
+			continue
+		}
+		conflicting := false
+		for index := 1; index < len(group); index++ {
+			if group[index].digest != group[0].digest {
+				conflicting = true
+				break
+			}
+		}
+		if conflicting {
+			for _, item := range group {
+				result.Evidence[item.index].Reasons = append(result.Evidence[item.index].Reasons,
+					QualificationReason{Code: ReasonConflictingObservation, Field: "payload"})
+			}
+			continue
+		}
+		for _, item := range group[1:] {
+			result.Evidence[item.index].Reasons = append(result.Evidence[item.index].Reasons,
+				QualificationReason{Code: ReasonDuplicateObservation, Field: "evidence_id"})
+		}
+	}
+
+	for index := range result.Evidence {
+		if len(result.Evidence[index].Reasons) > 0 && result.Evidence[index].Status == QualificationQualified {
+			result.Evidence[index].Status = QualificationRejected
+		}
+		if result.Evidence[index].Status != QualificationQualified {
+			result.Status = QualificationRejected
+		}
 	}
 	return result, nil
 }
