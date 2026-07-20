@@ -7,16 +7,19 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
 	"cargoos/evaluation"
+	"cargoos/evidence"
 	"cargoos/pds"
 )
 
 type Handler struct {
-	service   *pds.Service
-	readiness ReadinessChecker
+	service         *pds.Service
+	evidenceService *evidence.Service
+	readiness       ReadinessChecker
 }
 
 func NewHandler(service *pds.Service) http.Handler {
@@ -34,10 +37,31 @@ func (f ReadinessFunc) Check(ctx context.Context) error {
 }
 
 func NewHandlerWithReadiness(service *pds.Service, readiness ReadinessChecker) http.Handler {
+	return NewHandlerWithEvidence(service, defaultEvidenceService(), readiness)
+}
+
+func NewHandlerWithEvidence(
+	service *pds.Service,
+	evidenceService *evidence.Service,
+	readiness ReadinessChecker,
+) http.Handler {
 	if readiness == nil {
 		readiness = ReadinessFunc(func(context.Context) error { return nil })
 	}
-	return &Handler{service: service, readiness: readiness}
+	if evidenceService == nil {
+		evidenceService = defaultEvidenceService()
+	}
+	return &Handler{service: service, evidenceService: evidenceService, readiness: readiness}
+}
+
+func defaultEvidenceService() *evidence.Service {
+	service, err := evidence.NewService(evidence.NewMemoryRepository(), evidence.ServiceConfig{
+		SchemaVersion: "evidence.v1", RuntimeVersion: "cargoos-pds.dev",
+	})
+	if err != nil {
+		panic(err)
+	}
+	return service
 }
 
 type createEvaluationRequest struct {
@@ -49,6 +73,18 @@ type recordOutcomeRequest struct {
 	RuleID      string   `json:"rule_id"`
 	Status      string   `json:"status"`
 	ReasonCodes []string `json:"reason_codes"`
+}
+
+type ingestEvidenceRequest struct {
+	EvidenceID   string            `json:"evidence_id"`
+	SessionID    string            `json:"session_id"`
+	SourceID     string            `json:"source_id"`
+	SourceType   string            `json:"source_type"`
+	EvidenceType evidence.Type     `json:"evidence_type"`
+	ObservedAt   time.Time         `json:"observed_at"`
+	Payload      json.RawMessage   `json:"payload"`
+	Confidence   *float64          `json:"confidence,omitempty"`
+	Provenance   map[string]string `json:"provenance,omitempty"`
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +102,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Path == "/v1/evaluations" && r.Method == http.MethodPost {
 		h.createEvaluation(w, r)
+		return
+	}
+	if r.URL.Path == "/v1/evidence" && r.Method == http.MethodPost {
+		h.ingestEvidence(w, r)
+		return
+	}
+	const evidencePrefix = "/v1/evidence/"
+	if strings.HasPrefix(r.URL.Path, evidencePrefix) && r.Method == http.MethodGet {
+		h.findEvidence(w, r, strings.TrimPrefix(r.URL.Path, evidencePrefix))
 		return
 	}
 	const prefix = "/v1/evaluations/"
@@ -97,6 +142,68 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceResult(w, trace, serviceErr)
 	default:
 		writeError(w, http.StatusNotFound, "not_found")
+	}
+}
+
+func (h *Handler) ingestEvidence(w http.ResponseWriter, r *http.Request) {
+	var request ingestEvidenceRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	sessionID, err := uuid.Parse(request.SessionID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_session_id")
+		return
+	}
+	var evidenceID uuid.UUID
+	if request.EvidenceID != "" {
+		evidenceID, err = uuid.Parse(request.EvidenceID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_evidence_id")
+			return
+		}
+	}
+	snapshot, err := h.evidenceService.Ingest(r.Context(), evidence.Input{
+		EvidenceID: evidenceID, SessionID: sessionID, SourceID: request.SourceID,
+		SourceType: request.SourceType, EvidenceType: request.EvidenceType,
+		ObservedAt: request.ObservedAt, Payload: request.Payload,
+		Confidence: request.Confidence, Provenance: request.Provenance,
+		AcquisitionMethod: "HTTP",
+	})
+	if err != nil {
+		h.writeEvidenceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, snapshot)
+}
+
+func (h *Handler) findEvidence(w http.ResponseWriter, r *http.Request, value string) {
+	if value == "" || strings.Contains(value, "/") {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	id, err := uuid.Parse(value)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_evidence_id")
+		return
+	}
+	snapshot, err := h.evidenceService.Find(r.Context(), id)
+	if err != nil {
+		h.writeEvidenceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, snapshot)
+}
+
+func (h *Handler) writeEvidenceError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, evidence.ErrNotFound):
+		writeError(w, http.StatusNotFound, "evidence_not_found")
+	case errors.Is(err, evidence.ErrConflict):
+		writeError(w, http.StatusConflict, "evidence_conflict")
+	default:
+		writeError(w, http.StatusBadRequest, err.Error())
 	}
 }
 
