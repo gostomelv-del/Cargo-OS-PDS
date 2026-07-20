@@ -131,18 +131,19 @@ func postgresReadiness(db *sql.DB) httpapi.ReadinessChecker {
 		}
 		checkCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		var evaluations, history, outbox, evidenceObjects, policyVersions bool
+		var evaluations, history, outbox, evidenceObjects, policyVersions, policyLifecycle bool
 		err := db.QueryRowContext(checkCtx, `
 			SELECT to_regclass('public.evaluations') IS NOT NULL,
 			       to_regclass('public.evaluation_history') IS NOT NULL,
 			       to_regclass('public.evaluation_outbox') IS NOT NULL,
 			       to_regclass('public.evidence_objects') IS NOT NULL,
-			       to_regclass('public.policy_versions') IS NOT NULL
-		`).Scan(&evaluations, &history, &outbox, &evidenceObjects, &policyVersions)
+			       to_regclass('public.policy_versions') IS NOT NULL,
+			       to_regclass('public.policy_lifecycle_events') IS NOT NULL
+		`).Scan(&evaluations, &history, &outbox, &evidenceObjects, &policyVersions, &policyLifecycle)
 		if err != nil {
 			return fmt.Errorf("readiness query: %w", err)
 		}
-		if !evaluations || !history || !outbox || !evidenceObjects || !policyVersions {
+		if !evaluations || !history || !outbox || !evidenceObjects || !policyVersions || !policyLifecycle {
 			return errors.New("required PDS tables are missing")
 		}
 		return nil
