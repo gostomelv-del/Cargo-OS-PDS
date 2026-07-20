@@ -10,10 +10,8 @@ import (
 	"cargoos/evaluation"
 )
 
-var (
-	ErrEvaluationNotFound    = errors.New("pds: evaluation not found")
-	ErrConcurrentModification = errors.New("pds: concurrent modification")
-)
+var ErrEvaluationNotFound = errors.New("pds: evaluation not found")
+var ErrConcurrentModification = errors.New("pds: concurrent modification")
 
 type Clock func() time.Time
 
