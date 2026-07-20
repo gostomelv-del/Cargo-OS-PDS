@@ -71,6 +71,7 @@ type EvaluationAggregate struct {
 	checkpoints                                    map[string]EvaluationCheckpoint
 	history                                        []EvaluationHistoryEntry
 	evidenceBinding                                *EvidenceSetBinding
+	policyBinding                                  *PolicyBinding
 }
 
 func NewEvaluation(id, sessionID uuid.UUID, createdAt time.Time) (*EvaluationAggregate, error) {
