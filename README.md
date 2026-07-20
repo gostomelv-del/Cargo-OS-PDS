@@ -16,6 +16,10 @@ versioned policy and records deterministic `QUALIFIED`, `REJECTED`, or
 Complete session Evidence Sets are qualified in observation-time and Evidence-ID
 order; repeated observations are rejected deterministically as duplicates or
 conflicts before Rule Operators consume them.
+Evaluation snapshots and Decision Traces bind the exact qualified Evidence Set,
+including policy version, qualification time, Evidence IDs, statuses, and reason
+codes. A binding is immutable and can only be attached before Rule Outcomes are
+recorded.
 
 ## Requirements
 
