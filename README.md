@@ -24,6 +24,11 @@ The rule execution application service resolves the exact bound Evidence IDs,
 passes defensive copies only to required operators, and persists their outcomes
 as one atomic batch. Missing, rejected, unavailable, mismatched, or corrupted
 Evidence fails closed before any outcome is committed.
+The first standard Rule Operator library provides deterministic `MATCH`,
+inclusive `RANGE`, and absolute `TOLERANCE` evaluation over JSON Pointer values.
+Numeric operators use exact decimal rational arithmetic rather than floating
+point, and missing or ambiguous observations produce explicit inconclusive
+outcomes.
 
 ## Requirements
 
