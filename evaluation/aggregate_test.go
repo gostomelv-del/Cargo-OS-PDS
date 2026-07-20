@@ -55,7 +55,6 @@ func TestDuplicateOutcomeIsIdempotent(t *testing.T) {
 	}
 }
 
-
 func TestRequiredRulesMustBeComplete(t *testing.T) {
 	base := time.Now().UTC()
 	e, err := NewEvaluation(uuid.New(), uuid.New(), base)
