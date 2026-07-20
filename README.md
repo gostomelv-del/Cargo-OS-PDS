@@ -13,6 +13,9 @@ versions and provides the same repository contract in memory and PostgreSQL.
 The domain qualification layer evaluates each object against an explicit,
 versioned policy and records deterministic `QUALIFIED`, `REJECTED`, or
 `UNAVAILABLE` results with machine-readable reason codes.
+Complete session Evidence Sets are qualified in observation-time and Evidence-ID
+order; repeated observations are rejected deterministically as duplicates or
+conflicts before Rule Operators consume them.
 
 ## Requirements
 
