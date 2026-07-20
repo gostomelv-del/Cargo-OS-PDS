@@ -11,6 +11,7 @@ import (
 
 var (
 	ErrRepositoryRequired = errors.New("evidence: repository is required")
+	ErrQualifierRequired  = errors.New("evidence: qualifier is required")
 	ErrNotFound           = errors.New("evidence: object not found")
 	ErrConflict           = errors.New("evidence: identifier already contains different evidence")
 )
@@ -109,4 +110,20 @@ func (s *Service) ListBySession(ctx context.Context, sessionID uuid.UUID) ([]Sna
 		snapshots = append(snapshots, object.Snapshot())
 	}
 	return snapshots, nil
+}
+
+// QualifySession loads and evaluates the complete deterministic Evidence Set
+// using the service-controlled clock.
+func (s *Service) QualifySession(ctx context.Context, sessionID uuid.UUID, qualifier *Qualifier) (SessionQualificationResult, error) {
+	if qualifier == nil {
+		return SessionQualificationResult{}, ErrQualifierRequired
+	}
+	if sessionID == uuid.Nil {
+		return SessionQualificationResult{}, ErrSessionIDRequired
+	}
+	objects, err := s.repository.ListEvidenceBySession(ctx, sessionID)
+	if err != nil {
+		return SessionQualificationResult{}, err
+	}
+	return qualifier.QualifySet(sessionID, objects, s.now().UTC())
 }
