@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -61,6 +60,7 @@ type OutboxRecord struct {
 	ID                  uuid.UUID
 	AggregateType       string
 	AggregateID         uuid.UUID
+	SessionID           uuid.UUID
 	AggregateVersion    uint64
 	EventType           string
 	Payload             json.RawMessage
@@ -98,45 +98,33 @@ func NewOutboxRecord(event DomainEvent, createdAt time.Time) (OutboxRecord, erro
 	if createdAt.IsZero() {
 		return OutboxRecord{}, ErrOutboxTimestampRequired
 	}
-	value := reflect.ValueOf(event)
-	if value.Kind() == reflect.Pointer {
-		if value.IsNil() {
-			return OutboxRecord{}, ErrOutboxEventRequired
-		}
-		value = value.Elem()
-	}
-	typ := value.Type()
-	if typ.Name() == "" {
+	metadata := event.Metadata()
+	metadata.EventType = strings.TrimSpace(metadata.EventType)
+	if metadata.EventType == "" {
 		return OutboxRecord{}, ErrOutboxEventTypeRequired
 	}
-	idField := value.FieldByName("EvaluationID")
-	versionField := value.FieldByName("Version")
-	if !idField.IsValid() || !versionField.IsValid() {
-		return OutboxRecord{}, fmt.Errorf("%w: missing aggregate metadata", ErrOutboxEventRequired)
+	if metadata.EvaluationID == uuid.Nil || metadata.SessionID == uuid.Nil || metadata.Version == 0 {
+		return OutboxRecord{}, fmt.Errorf("%w: invalid event metadata", ErrOutboxEventRequired)
 	}
-	aggregateID, ok := idField.Interface().(uuid.UUID)
-	if !ok || aggregateID == uuid.Nil {
-		return OutboxRecord{}, ErrOutboxEventRequired
-	}
-	version := versionField.Uint()
-	occurredAt := time.Time{}
-	for _, name := range []string{"OccurredAt", "CreatedAt", "StartedAt", "CompletedAt", "RequiredAt", "RegisteredAt", "EvaluatedAt", "CancelledAt", "ExpiredAt", "RecordedAt", "ReplacedAt", "RemovedAt", "ResetAt", "CheckpointedAt", "RolledBackAt"} {
-		f := value.FieldByName(name)
-		if f.IsValid() {
-			if t, ok := f.Interface().(time.Time); ok {
-				occurredAt = t
-				break
-			}
-		}
-	}
-	if occurredAt.IsZero() {
+	if metadata.OccurredAt.IsZero() {
 		return OutboxRecord{}, ErrOutboxTimestampRequired
 	}
 	payload, err := json.Marshal(event)
 	if err != nil {
 		return OutboxRecord{}, fmt.Errorf("%w: %v", ErrOutboxSerializationFailed, err)
 	}
-	return normalizeOutboxRecord(OutboxRecord{ID: uuid.New(), AggregateType: "evaluation", AggregateID: aggregateID, AggregateVersion: version, EventType: typ.Name(), Payload: append(json.RawMessage(nil), payload...), Status: OutboxStatusPending, OccurredAt: occurredAt.UTC(), CreatedAt: createdAt.UTC()}), nil
+	return normalizeOutboxRecord(OutboxRecord{
+		ID:               uuid.New(),
+		AggregateType:    "evaluation",
+		AggregateID:      metadata.EvaluationID,
+		SessionID:        metadata.SessionID,
+		AggregateVersion: metadata.Version,
+		EventType:        metadata.EventType,
+		Payload:          append(json.RawMessage(nil), payload...),
+		Status:           OutboxStatusPending,
+		OccurredAt:       metadata.OccurredAt.UTC(),
+		CreatedAt:        createdAt.UTC(),
+	}), nil
 }
 
 func (e *EvaluationAggregate) BuildOutboxRecords(createdAt time.Time) ([]OutboxRecord, error) {

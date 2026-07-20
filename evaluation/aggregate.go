@@ -6,7 +6,9 @@ import (
 	"time"
 )
 
-type DomainEvent interface{}
+type DomainEvent interface {
+	Metadata() EventMetadata
+}
 
 type EvaluationCreatedEvent struct {
 	EvaluationID, SessionID uuid.UUID
