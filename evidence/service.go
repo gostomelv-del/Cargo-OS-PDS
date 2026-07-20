@@ -18,6 +18,7 @@ var (
 type Repository interface {
 	SaveEvidence(context.Context, Snapshot) error
 	FindEvidence(context.Context, uuid.UUID) (*Object, error)
+	ListEvidenceBySession(context.Context, uuid.UUID) ([]*Object, error)
 }
 
 type Clock func() time.Time
@@ -90,4 +91,22 @@ func (s *Service) Find(ctx context.Context, id uuid.UUID) (Snapshot, error) {
 		return Snapshot{}, ErrNotFound
 	}
 	return object.Snapshot(), nil
+}
+
+func (s *Service) ListBySession(ctx context.Context, sessionID uuid.UUID) ([]Snapshot, error) {
+	if sessionID == uuid.Nil {
+		return nil, ErrSessionIDRequired
+	}
+	objects, err := s.repository.ListEvidenceBySession(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	snapshots := make([]Snapshot, 0, len(objects))
+	for _, object := range objects {
+		if object == nil {
+			return nil, ErrNotFound
+		}
+		snapshots = append(snapshots, object.Snapshot())
+	}
+	return snapshots, nil
 }
