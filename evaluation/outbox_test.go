@@ -52,3 +52,25 @@ func TestPublisherSchedulesRetry(t *testing.T){
     n,err:=p.PublishOnce(context.Background());if err!=nil{t.Fatal(err)};if n!=0{t.Fatalf("published=%d",n)}
     stored,_:=repo.FindByID(context.Background(),r.ID);if stored.Status!=OutboxStatusRetryScheduled||stored.LastError==""{t.Fatalf("unexpected retry state: %+v",stored)}
 }
+
+
+func TestBuildOutboxRecordsAfterRuleOutcome(t *testing.T) {
+	now := time.Now().UTC()
+	agg, err := NewEvaluation(uuid.New(), uuid.New(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = agg.Start(now); err != nil {
+		t.Fatal(err)
+	}
+	if err = agg.RecordRuleOutcome(RuleOutcome{RuleID: "weight", Status: RuleOutcomePass, EvaluatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	records, err := agg.BuildOutboxRecords(now.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 2 || records[1].EventType != "RuleOutcomeRecordedEvent" {
+		t.Fatalf("unexpected records: %#v", records)
+	}
+}
