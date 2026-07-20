@@ -20,6 +20,10 @@ Evaluation snapshots and Decision Traces bind the exact qualified Evidence Set,
 including policy version, qualification time, Evidence IDs, statuses, and reason
 codes. A binding is immutable and can only be attached before Rule Outcomes are
 recorded.
+The rule execution application service resolves the exact bound Evidence IDs,
+passes defensive copies only to required operators, and persists their outcomes
+as one atomic batch. Missing, rejected, unavailable, mismatched, or corrupted
+Evidence fails closed before any outcome is committed.
 
 ## Requirements
 
