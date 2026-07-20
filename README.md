@@ -44,6 +44,9 @@ The in-memory Policy Registry stores immutable canonical policy versions,
 rejects overlapping effective periods, and resolves exactly one version at the
 Evaluation creation time. Resolution binds the resulting policy identity and
 hash only when its ordered required-rule plan exactly matches the Evaluation.
+The PostgreSQL Policy Registry provides the same idempotent add and exact-time
+resolution contract durably. Database constraints reject overlapping effective
+periods, and triggers prevent policy versions from being updated or deleted.
 
 ## Requirements
 

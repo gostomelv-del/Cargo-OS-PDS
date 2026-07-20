@@ -8,7 +8,9 @@ PDS_DATABASE_URL="$DATABASE_URL" go run ./cmd/pds-migrate
 
 migration_count="$(psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
     "SELECT COUNT(*) FROM cargoos_schema_migrations;")"
-test "$migration_count" = "2"
+test "$migration_count" = "3"
+
+go test ./persistence/postgres -run TestPostgresPolicyRegistry -count=1
 
 evaluation_id="00000000-0000-4000-8000-000000000001"
 session_id="00000000-0000-4000-8000-000000000002"
@@ -115,9 +117,12 @@ tables="$(psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c "
     SELECT COUNT(*)
       FROM information_schema.tables
      WHERE table_schema = 'public'
-       AND table_name IN ('evaluations', 'evaluation_history', 'evaluation_outbox');
+       AND table_name IN (
+           'evaluations', 'evaluation_history', 'evaluation_outbox',
+           'evidence_objects', 'policy_versions'
+       );
 ")"
-test "$tables" = "3"
+test "$tables" = "5"
 
 evidence_id="00000000-0000-4000-8000-000000000021"
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
@@ -148,4 +153,27 @@ evidence_count="$(psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
     "SELECT COUNT(*) FROM evidence_objects WHERE evidence_id = '$evidence_id';")"
 test "$evidence_count" = "1"
 
-echo "PostgreSQL schema, migrations, immutable evidence, optimistic locking, and SKIP LOCKED verified"
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
+    INSERT INTO policy_versions (
+        policy_id, version, schema_version, effective_from,
+        policy_hash, snapshot
+    ) VALUES (
+        'schema-policy', 'v1', '1', '2026-07-20T00:00:00Z',
+        'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        '{}'
+    );
+"
+
+if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
+    "UPDATE policy_versions SET version = 'changed' WHERE policy_id = 'schema-policy';"; then
+  echo "Expected immutable policy update to fail"
+  exit 1
+fi
+
+if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
+    "DELETE FROM policy_versions WHERE policy_id = 'schema-policy';"; then
+  echo "Expected immutable policy delete to fail"
+  exit 1
+fi
+
+echo "PostgreSQL schema, migrations, immutable evidence and policies, optimistic locking, and SKIP LOCKED verified"
