@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,11 +15,29 @@ import (
 )
 
 type Handler struct {
-	service *pds.Service
+	service   *pds.Service
+	readiness ReadinessChecker
 }
 
 func NewHandler(service *pds.Service) http.Handler {
-	return &Handler{service: service}
+	return NewHandlerWithReadiness(service, ReadinessFunc(func(context.Context) error { return nil }))
+}
+
+type ReadinessChecker interface {
+	Check(context.Context) error
+}
+
+type ReadinessFunc func(context.Context) error
+
+func (f ReadinessFunc) Check(ctx context.Context) error {
+	return f(ctx)
+}
+
+func NewHandlerWithReadiness(service *pds.Service, readiness ReadinessChecker) http.Handler {
+	if readiness == nil {
+		readiness = ReadinessFunc(func(context.Context) error { return nil })
+	}
+	return &Handler{service: service, readiness: readiness}
 }
 
 type createEvaluationRequest struct {
@@ -35,6 +54,14 @@ type recordOutcomeRequest struct {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/healthz" && r.Method == http.MethodGet {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		return
+	}
+	if r.URL.Path == "/readyz" && r.Method == http.MethodGet {
+		if err := h.readiness.Check(r.Context()); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "not_ready"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 		return
 	}
 	if r.URL.Path == "/v1/evaluations" && r.Method == http.MethodPost {
