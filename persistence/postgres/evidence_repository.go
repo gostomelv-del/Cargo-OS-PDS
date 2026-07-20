@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -14,8 +13,8 @@ import (
 )
 
 var (
-	ErrEvidenceNotFound = errors.New("postgres: evidence not found")
-	ErrEvidenceConflict = errors.New("postgres: evidence ID already contains different evidence")
+	ErrEvidenceNotFound = evidence.ErrNotFound
+	ErrEvidenceConflict = evidence.ErrConflict
 )
 
 // SaveEvidence appends an immutable Evidence Object. Repeating the exact same
@@ -64,11 +63,7 @@ func (s *Store) SaveEvidence(ctx context.Context, snapshot evidence.Snapshot) er
 	if err != nil {
 		return err
 	}
-	existingPayload, err = json.Marshal(existing.Snapshot())
-	if err != nil {
-		return fmt.Errorf("postgres: encode existing evidence: %w", err)
-	}
-	if bytes.Equal(existingPayload, payload) {
+	if evidence.SameSubmission(existing.Snapshot(), normalized) {
 		return nil
 	}
 	return ErrEvidenceConflict
@@ -105,3 +100,5 @@ func decodeEvidenceSnapshot(payload []byte) (*evidence.Object, error) {
 	}
 	return object, nil
 }
+
+var _ evidence.Repository = (*Store)(nil)
