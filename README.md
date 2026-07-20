@@ -16,15 +16,19 @@ For a local, non-durable demonstration:
 go run ./cmd/pds-server
 ```
 
-For durable storage, apply the migration and provide a PostgreSQL connection
-URL before starting the server:
+For durable storage, provide a PostgreSQL connection URL, apply all embedded
+migrations, and then start the server:
 
 ```sh
-psql "$PDS_DATABASE_URL" -v ON_ERROR_STOP=1 \
-  -f migrations/0001_evaluation_persistence.sql
-PDS_DATABASE_URL="postgres://cargoos:cargoos@localhost:5432/cargoos?sslmode=disable" \
-  go run ./cmd/pds-server
+export PDS_DATABASE_URL="postgres://cargoos:cargoos@localhost:5432/cargoos?sslmode=disable"
+go run ./cmd/pds-migrate
+go run ./cmd/pds-server
 ```
+
+The migration command serializes concurrent deployments, records the checksum
+of every applied migration, and fails if an already applied migration was
+modified. Existing installations can continue to apply individual SQL files
+with `psql`, but managed deployments should use `pds-migrate`.
 
 `PDS_HTTP_ADDRESS` optionally changes the listen address from the default
 `:8080`. The process verifies the database connection at startup and shuts down
