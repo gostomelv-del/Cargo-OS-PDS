@@ -16,15 +16,17 @@ import (
 
 // Add stores an immutable policy version. Repeating the exact version is
 // idempotent; reusing its identity or overlapping an effective period fails.
-func (s *Store) Add(ctx context.Context, verified *policy.VerifiedVersion) error {
+func (s *Store) Add(ctx context.Context, activated *policy.ActivatedVersion) error {
 	if s == nil || s.db == nil {
 		return ErrDatabaseRequired
 	}
-	if verified == nil || verified.Version() == nil {
+	if activated == nil || activated.VerifiedVersion() == nil || activated.VerifiedVersion().Version() == nil {
 		return policy.ErrPolicyNotFound
 	}
+	verified := activated.VerifiedVersion()
 	snapshot := verified.Version().Snapshot()
 	signature := verified.Signature()
+	approval := activated.Approval()
 	payload, err := encodePolicySnapshot(snapshot)
 	if err != nil {
 		return err
@@ -44,33 +46,66 @@ func (s *Store) Add(ctx context.Context, verified *policy.VerifiedVersion) error
 		SELECT policy_hash, signature_value IS NOT NULL FROM policy_versions
 		 WHERE policy_id = $1 AND version = $2
 	`, snapshot.PolicyID, snapshot.Version).Scan(&existingHash, &existingVerified)
+	versionExists := err == nil
 	switch {
-	case err == nil && existingHash == snapshot.Hash && existingVerified:
-		return tx.Commit()
+	case versionExists && existingHash == snapshot.Hash && existingVerified:
 	case err == nil:
 		return policy.ErrVersionConflict
 	case !errors.Is(err, sql.ErrNoRows):
 		return fmt.Errorf("postgres: inspect policy version: %w", err)
 	}
 
-	_, err = tx.ExecContext(ctx, `
+	if !versionExists {
+		_, err = tx.ExecContext(ctx, `
 		INSERT INTO policy_versions (
 			policy_id, version, schema_version, effective_from,
 			effective_until, policy_hash, snapshot, signer_id, key_id,
 			signature_algorithm, signed_at, signature_value
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`, snapshot.PolicyID, snapshot.Version, snapshot.SchemaVersion,
-		snapshot.EffectiveFrom, snapshot.EffectiveUntil, snapshot.Hash, payload,
-		signature.SignerID, signature.KeyID, signature.Algorithm,
-		signature.SignedAt, signature.Value)
-	if isExclusionViolation(err) {
-		return policy.ErrEffectiveOverlap
+			snapshot.EffectiveFrom, snapshot.EffectiveUntil, snapshot.Hash, payload,
+			signature.SignerID, signature.KeyID, signature.Algorithm,
+			signature.SignedAt, signature.Value)
+		if isExclusionViolation(err) {
+			return policy.ErrEffectiveOverlap
+		}
+		if err != nil {
+			return fmt.Errorf("postgres: insert policy version: %w", err)
+		}
 	}
-	if err != nil {
-		return fmt.Errorf("postgres: insert policy version: %w", err)
+	if err = insertActivation(ctx, tx, snapshot, approval, activated.ActivatedAt()); err != nil {
+		return err
 	}
 	if err = tx.Commit(); err != nil {
 		return fmt.Errorf("postgres: commit policy transaction: %w", err)
+	}
+	return nil
+}
+
+func insertActivation(ctx context.Context, tx *sql.Tx, snapshot policy.Snapshot, approval policy.ApprovalRecord, activatedAt time.Time) error {
+	var existingAt, existingApprovedAt time.Time
+	var existingApprovedBy string
+	err := tx.QueryRowContext(ctx, `
+		SELECT event_at, approved_by, approved_at
+		  FROM policy_lifecycle_events
+		 WHERE policy_id = $1 AND version = $2 AND status = 'ACTIVE'
+	`, snapshot.PolicyID, snapshot.Version).Scan(&existingAt, &existingApprovedBy, &existingApprovedAt)
+	if err == nil {
+		if existingAt.Equal(activatedAt) && existingApprovedBy == approval.ApprovedBy && existingApprovedAt.Equal(approval.ApprovedAt) {
+			return nil
+		}
+		return policy.ErrInvalidLifecycleChange
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("postgres: inspect policy activation: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO policy_lifecycle_events (
+			policy_id, version, status, event_at, approved_by, approved_at
+		) VALUES ($1, $2, 'ACTIVE', $3, $4, $5)
+	`, snapshot.PolicyID, snapshot.Version, activatedAt, approval.ApprovedBy, approval.ApprovedAt)
+	if err != nil {
+		return fmt.Errorf("postgres: activate policy: %w", err)
 	}
 	return nil
 }
@@ -84,12 +119,22 @@ func (s *Store) Resolve(ctx context.Context, policyID string, at time.Time) (*po
 		return nil, policy.ErrPolicyNotFound
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT snapshot FROM policy_versions
-		 WHERE policy_id = $1
-		   AND signature_value IS NOT NULL
-		   AND effective_from <= $2
-		   AND (effective_until IS NULL OR $2 < effective_until)
-		 ORDER BY effective_from, version
+		SELECT versions.snapshot
+		  FROM policy_versions AS versions
+		  JOIN LATERAL (
+		      SELECT status, event_at
+		        FROM policy_lifecycle_events
+		       WHERE policy_id = versions.policy_id AND version = versions.version
+		       ORDER BY event_at DESC, event_id DESC
+		       LIMIT 1
+		  ) AS lifecycle ON TRUE
+		 WHERE versions.policy_id = $1
+		   AND versions.signature_value IS NOT NULL
+		   AND lifecycle.status = 'ACTIVE'
+		   AND lifecycle.event_at <= $2
+		   AND versions.effective_from <= $2
+		   AND (versions.effective_until IS NULL OR $2 < versions.effective_until)
+		 ORDER BY versions.effective_from, versions.version
 		 LIMIT 2
 	`, policyID, at.UTC())
 	if err != nil {
@@ -119,6 +164,54 @@ func (s *Store) Resolve(ctx context.Context, policyID string, at time.Time) (*po
 	default:
 		return nil, policy.ErrAmbiguousPolicy
 	}
+}
+
+func (s *Store) Suspend(ctx context.Context, policyID, version string, at time.Time) error {
+	return s.transitionPolicy(ctx, policyID, version, policy.LifecycleSuspended, at)
+}
+
+func (s *Store) Retire(ctx context.Context, policyID, version string, at time.Time) error {
+	return s.transitionPolicy(ctx, policyID, version, policy.LifecycleRetired, at)
+}
+
+func (s *Store) transitionPolicy(ctx context.Context, policyID, version string, target policy.LifecycleStatus, at time.Time) error {
+	if s == nil || s.db == nil {
+		return ErrDatabaseRequired
+	}
+	if policyID == "" || version == "" || at.IsZero() {
+		return policy.ErrInvalidLifecycleChange
+	}
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil {
+		return fmt.Errorf("postgres: begin lifecycle transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, policyID); err != nil {
+		return fmt.Errorf("postgres: lock policy lifecycle: %w", err)
+	}
+	var current policy.LifecycleStatus
+	var currentAt time.Time
+	err = tx.QueryRowContext(ctx, `
+		SELECT status, event_at FROM policy_lifecycle_events
+		 WHERE policy_id = $1 AND version = $2
+		 ORDER BY event_at DESC, event_id DESC LIMIT 1
+	`, policyID, version).Scan(&current, &currentAt)
+	valid := (current == policy.LifecycleActive && (target == policy.LifecycleSuspended || target == policy.LifecycleRetired)) ||
+		(current == policy.LifecycleSuspended && target == policy.LifecycleRetired)
+	if err != nil || !valid || at.UTC().Before(currentAt) {
+		return policy.ErrInvalidLifecycleChange
+	}
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO policy_lifecycle_events (policy_id, version, status, event_at)
+		VALUES ($1, $2, $3, $4)
+	`, policyID, version, target, at.UTC())
+	if err != nil {
+		return fmt.Errorf("postgres: transition policy lifecycle: %w", err)
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("postgres: commit lifecycle transaction: %w", err)
+	}
+	return nil
 }
 
 func encodePolicySnapshot(snapshot policy.Snapshot) ([]byte, error) {
