@@ -33,6 +33,10 @@ The temporal `SEQUENCE` operator orders observations by `ObservedAt` and
 Evidence ID, enforces canonical step values, and supports maximum inter-step
 and total-duration windows. Missing steps are inconclusive; wrong order,
 values, or timing fail explicitly.
+The standard Rule Execution path also requires the exact verification
+`policy_id`, immutable version, and canonical SHA-256 policy hash to be bound
+before Rule Outcomes exist. The identity is persisted in snapshots, outbox
+events, Decision Traces, and every Rule Operator input.
 
 ## Requirements
 

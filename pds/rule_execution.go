@@ -19,6 +19,7 @@ var (
 	ErrDuplicateRuleOperator     = errors.New("pds: duplicate rule operator")
 	ErrRuleOperatorMissing       = errors.New("pds: required rule operator is missing")
 	ErrEvidenceBindingMissing    = errors.New("pds: evaluation evidence binding is missing")
+	ErrPolicyBindingMissing      = errors.New("pds: verification policy binding is missing")
 	ErrEvidenceNotQualified      = errors.New("pds: bound evidence set is not qualified")
 	ErrBoundEvidenceMismatch     = errors.New("pds: stored evidence does not match the binding")
 	ErrRuleExecutionFailed       = errors.New("pds: rule operator execution failed")
@@ -34,7 +35,9 @@ type EvidenceReader interface {
 type RuleInput struct {
 	EvaluationID  uuid.UUID
 	SessionID     uuid.UUID
+	PolicyID      string
 	PolicyVersion string
+	PolicyHash    string
 	Evidence      []evidence.Snapshot
 }
 
@@ -98,6 +101,10 @@ func (s *RuleExecutionService) Execute(ctx context.Context, evaluationID uuid.UU
 	if binding.Status != evaluation.EvidenceQualified {
 		return evaluation.EvaluationSnapshot{}, ErrEvidenceNotQualified
 	}
+	policy := snapshot.PolicyBinding
+	if policy == nil {
+		return evaluation.EvaluationSnapshot{}, ErrPolicyBindingMissing
+	}
 	if len(snapshot.RuleOutcomes) > 0 {
 		if len(aggregate.MissingRequiredRuleIDs()) == 0 {
 			return snapshot, nil
@@ -138,7 +145,8 @@ func (s *RuleExecutionService) Execute(ctx context.Context, evaluationID uuid.UU
 		}
 		decision, executeErr := s.operators[ruleID].Evaluate(ctx, RuleInput{
 			EvaluationID: evaluationID, SessionID: snapshot.SessionID,
-			PolicyVersion: binding.PolicyVersion, Evidence: operatorEvidence,
+			PolicyID: policy.PolicyID, PolicyVersion: policy.Version,
+			PolicyHash: policy.Hash, Evidence: operatorEvidence,
 		})
 		if executeErr != nil {
 			return evaluation.EvaluationSnapshot{}, fmt.Errorf("%w: %s: %v", ErrRuleExecutionFailed, ruleID, executeErr)

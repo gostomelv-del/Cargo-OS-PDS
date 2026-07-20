@@ -42,6 +42,8 @@ type executionFixture struct {
 	now         time.Time
 }
 
+const executionPolicyHash = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
 func newExecutionFixture(t *testing.T, ruleIDs []string, policy evidence.QualificationPolicy) executionFixture {
 	t.Helper()
 	now := time.Date(2026, 7, 20, 16, 0, 0, 0, time.UTC)
@@ -82,6 +84,11 @@ func newExecutionFixture(t *testing.T, ruleIDs []string, policy evidence.Qualifi
 	if _, err = evaluationService.BindEvidenceQualification(context.Background(), created.EvaluationID, qualified); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = evaluationService.BindVerificationPolicy(context.Background(), created.EvaluationID, evaluation.PolicyBinding{
+		PolicyID: "cargo-transfer", Version: "policy.v1", Hash: executionPolicyHash, BoundAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	return executionFixture{evaluationService, evidenceService, store, created, qualified, now}
 }
 
@@ -90,7 +97,8 @@ func TestRuleExecutionUsesBoundQualifiedEvidence(t *testing.T) {
 	operator := &testRuleOperator{id: "weight", decision: RuleDecision{Status: evaluation.RuleOutcomePass}}
 	operator.check = func(input RuleInput) error {
 		if input.EvaluationID != fixture.evaluation.EvaluationID || input.SessionID != fixture.qualified.SessionID ||
-			input.PolicyVersion != "qualification.v1" || len(input.Evidence) != 1 ||
+			input.PolicyID != "cargo-transfer" || input.PolicyVersion != "policy.v1" || input.PolicyHash != executionPolicyHash ||
+			len(input.Evidence) != 1 ||
 			input.Evidence[0].EvidenceID != fixture.qualified.Evidence[0].EvidenceID {
 			return errors.New("wrong rule input")
 		}
