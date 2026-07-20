@@ -8,7 +8,7 @@ PDS_DATABASE_URL="$DATABASE_URL" go run ./cmd/pds-migrate
 
 migration_count="$(psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
     "SELECT COUNT(*) FROM cargoos_schema_migrations;")"
-test "$migration_count" = "4"
+test "$migration_count" = "5"
 
 go test ./persistence/postgres -run TestPostgresPolicyRegistry -count=1
 
@@ -119,10 +119,10 @@ tables="$(psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c "
      WHERE table_schema = 'public'
        AND table_name IN (
            'evaluations', 'evaluation_history', 'evaluation_outbox',
-           'evidence_objects', 'policy_versions'
+           'evidence_objects', 'policy_versions', 'policy_lifecycle_events'
        );
 ")"
-test "$tables" = "5"
+test "$tables" = "6"
 
 evidence_id="00000000-0000-4000-8000-000000000021"
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
@@ -190,4 +190,25 @@ if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
   exit 1
 fi
 
-echo "PostgreSQL schema, migrations, immutable evidence and policies, optimistic locking, and SKIP LOCKED verified"
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
+    INSERT INTO policy_lifecycle_events (
+        policy_id, version, status, event_at, approved_by, approved_at
+    ) VALUES (
+        'schema-policy', 'v1', 'ACTIVE', '2026-07-20T01:00:00Z',
+        'policy-review-board', '2026-07-20T00:30:00Z'
+    );
+"
+
+if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
+    "UPDATE policy_lifecycle_events SET status = 'RETIRED' WHERE policy_id = 'schema-policy';"; then
+  echo "Expected append-only lifecycle update to fail"
+  exit 1
+fi
+
+if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
+    "DELETE FROM policy_lifecycle_events WHERE policy_id = 'schema-policy';"; then
+  echo "Expected append-only lifecycle delete to fail"
+  exit 1
+fi
+
+echo "PostgreSQL schema, migrations, immutable evidence and policies, append-only lifecycle, optimistic locking, and SKIP LOCKED verified"
