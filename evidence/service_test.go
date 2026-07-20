@@ -130,3 +130,34 @@ func TestServiceConfigurationValidation(t *testing.T) {
 		t.Fatalf("expected runtime error, got %v", err)
 	}
 }
+
+func TestListBySessionIsDeterministic(t *testing.T) {
+	repository := NewMemoryRepository()
+	service, now := newTestService(t, repository)
+	sessionID := uuid.New()
+	inputs := []Input{serviceInput(now), serviceInput(now)}
+	inputs[0].SessionID = sessionID
+	inputs[0].ObservedAt = now.Add(-time.Second)
+	inputs[1].SessionID = sessionID
+	inputs[1].ObservedAt = now.Add(-2 * time.Second)
+	for _, input := range inputs {
+		if _, err := service.Ingest(context.Background(), input); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := service.Ingest(context.Background(), serviceInput(now)); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := service.ListBySession(context.Background(), sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 2 || !listed[0].ObservedAt.Before(listed[1].ObservedAt) {
+		t.Fatalf("session evidence is not deterministically ordered: %#v", listed)
+	}
+	listed[0].Payload[0] = '['
+	again, err := service.ListBySession(context.Background(), sessionID)
+	if err != nil || again[0].Payload[0] != '{' {
+		t.Fatal("listed evidence was not defensively copied")
+	}
+}
