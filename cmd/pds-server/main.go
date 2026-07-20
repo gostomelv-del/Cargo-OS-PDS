@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -27,7 +29,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	service, closeStore, err := newService(ctx, os.Getenv("PDS_DATABASE_URL"))
+	service, readiness, closeStore, err := newService(ctx, os.Getenv("PDS_DATABASE_URL"))
 	if err != nil {
 		return err
 	}
@@ -39,7 +41,7 @@ func run() error {
 	}
 	server := &http.Server{
 		Addr:              address,
-		Handler:           httpapi.NewHandler(service),
+		Handler:           httpapi.NewHandlerWithReadiness(service, readiness),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -73,15 +75,18 @@ func run() error {
 	return nil
 }
 
-func newService(ctx context.Context, databaseURL string) (*pds.Service, func(), error) {
+func newService(
+	ctx context.Context,
+	databaseURL string,
+) (*pds.Service, httpapi.ReadinessChecker, func(), error) {
 	if databaseURL == "" {
 		log.Print("PDS_DATABASE_URL is not set; using non-durable in-memory storage")
-		return pds.NewService(nil), func() {}, nil
+		return pds.NewService(nil), httpapi.ReadinessFunc(func(context.Context) error { return nil }), func() {}, nil
 	}
 
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
-		return nil, func() {}, err
+		return nil, nil, func() {}, err
 	}
 	closeDatabase := func() { _ = db.Close() }
 
@@ -89,13 +94,36 @@ func newService(ctx context.Context, databaseURL string) (*pds.Service, func(), 
 	defer cancel()
 	if err = db.PingContext(pingCtx); err != nil {
 		closeDatabase()
-		return nil, func() {}, err
+		return nil, nil, func() {}, err
 	}
 	store, err := postgresstore.NewStore(db)
 	if err != nil {
 		closeDatabase()
-		return nil, func() {}, err
+		return nil, nil, func() {}, err
 	}
 	log.Print("using durable PostgreSQL storage")
-	return pds.NewServiceWithStore(store, nil), closeDatabase, nil
+	return pds.NewServiceWithStore(store, nil), postgresReadiness(db), closeDatabase, nil
+}
+
+func postgresReadiness(db *sql.DB) httpapi.ReadinessChecker {
+	return httpapi.ReadinessFunc(func(ctx context.Context) error {
+		if db == nil {
+			return errors.New("database is required")
+		}
+		checkCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		var evaluations, history, outbox bool
+		err := db.QueryRowContext(checkCtx, `
+			SELECT to_regclass('public.evaluations') IS NOT NULL,
+			       to_regclass('public.evaluation_history') IS NOT NULL,
+			       to_regclass('public.evaluation_outbox') IS NOT NULL
+		`).Scan(&evaluations, &history, &outbox)
+		if err != nil {
+			return fmt.Errorf("readiness query: %w", err)
+		}
+		if !evaluations || !history || !outbox {
+			return errors.New("required PDS tables are missing")
+		}
+		return nil
+	})
 }
