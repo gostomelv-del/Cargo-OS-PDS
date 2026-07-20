@@ -8,9 +8,9 @@ PDS_DATABASE_URL="$DATABASE_URL" go run ./cmd/pds-migrate
 
 migration_count="$(psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
     "SELECT COUNT(*) FROM cargoos_schema_migrations;")"
-test "$migration_count" = "5"
+test "$migration_count" = "6"
 
-go test ./persistence/postgres -run TestPostgresPolicyRegistry -count=1
+go test ./persistence/postgres -run TestPostgres -count=1
 
 evaluation_id="00000000-0000-4000-8000-000000000001"
 session_id="00000000-0000-4000-8000-000000000002"
@@ -119,10 +119,11 @@ tables="$(psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c "
      WHERE table_schema = 'public'
        AND table_name IN (
            'evaluations', 'evaluation_history', 'evaluation_outbox',
-           'evidence_objects', 'policy_versions', 'policy_lifecycle_events'
+           'evidence_objects', 'policy_versions', 'policy_lifecycle_events',
+           'trusted_verification_keys', 'trust_key_revocations'
        );
 ")"
-test "$tables" = "6"
+test "$tables" = "8"
 
 evidence_id="00000000-0000-4000-8000-000000000021"
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
@@ -211,4 +212,27 @@ if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
   exit 1
 fi
 
-echo "PostgreSQL schema, migrations, immutable evidence and policies, append-only lifecycle, optimistic locking, and SKIP LOCKED verified"
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
+    INSERT INTO trusted_verification_keys (
+        signer_id, key_id, algorithm, public_key, valid_from
+    ) VALUES (
+        'schema-authority', 'key-1', 'ED25519', decode(repeat('ab', 32), 'hex'),
+        '2026-07-20T00:00:00Z'
+    );
+    INSERT INTO trust_key_revocations (signer_id, key_id, revoked_at)
+    VALUES ('schema-authority', 'key-1', '2026-07-20T01:00:00Z');
+"
+
+if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
+    "UPDATE trusted_verification_keys SET key_id = 'changed' WHERE signer_id = 'schema-authority';"; then
+  echo "Expected immutable Trust Store key update to fail"
+  exit 1
+fi
+
+if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
+    "DELETE FROM trust_key_revocations WHERE signer_id = 'schema-authority';"; then
+  echo "Expected immutable key revocation delete to fail"
+  exit 1
+fi
+
+echo "PostgreSQL schema, migrations, immutable evidence, policies and Trust Store, append-only lifecycle, optimistic locking, and SKIP LOCKED verified"
