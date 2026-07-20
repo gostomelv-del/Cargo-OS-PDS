@@ -47,6 +47,11 @@ hash only when its ordered required-rule plan exactly matches the Evaluation.
 The PostgreSQL Policy Registry provides the same idempotent add and exact-time
 resolution contract durably. Database constraints reject overlapping effective
 periods, and triggers prevent policy versions from being updated or deleted.
+Policy admission is fail-closed: registries accept only versions whose
+domain-separated policy hash has been verified against a trusted, time-valid,
+non-revoked signing key. The initial cryptographic profile supports `ED25519`;
+algorithm identifiers and trust-store interfaces preserve algorithm agility,
+while private signing keys remain outside the PDS.
 
 ## Requirements
 

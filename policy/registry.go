@@ -23,11 +23,11 @@ func NewRegistry() *Registry {
 	return &Registry{versions: make(map[string]map[string]Snapshot)}
 }
 
-func (r *Registry) Add(_ context.Context, version *Version) error {
-	if version == nil {
+func (r *Registry) Add(_ context.Context, verified *VerifiedVersion) error {
+	if verified == nil || verified.Version() == nil {
 		return ErrPolicyNotFound
 	}
-	snapshot := version.Snapshot()
+	snapshot := verified.Version().Snapshot()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	byVersion := r.versions[snapshot.PolicyID]

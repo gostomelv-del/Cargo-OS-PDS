@@ -16,14 +16,15 @@ import (
 
 // Add stores an immutable policy version. Repeating the exact version is
 // idempotent; reusing its identity or overlapping an effective period fails.
-func (s *Store) Add(ctx context.Context, version *policy.Version) error {
+func (s *Store) Add(ctx context.Context, verified *policy.VerifiedVersion) error {
 	if s == nil || s.db == nil {
 		return ErrDatabaseRequired
 	}
-	if version == nil {
+	if verified == nil || verified.Version() == nil {
 		return policy.ErrPolicyNotFound
 	}
-	snapshot := version.Snapshot()
+	snapshot := verified.Version().Snapshot()
+	signature := verified.Signature()
 	payload, err := encodePolicySnapshot(snapshot)
 	if err != nil {
 		return err
@@ -38,12 +39,13 @@ func (s *Store) Add(ctx context.Context, version *policy.Version) error {
 		return fmt.Errorf("postgres: lock policy: %w", err)
 	}
 	var existingHash string
+	var existingVerified bool
 	err = tx.QueryRowContext(ctx, `
-		SELECT policy_hash FROM policy_versions
+		SELECT policy_hash, signature_value IS NOT NULL FROM policy_versions
 		 WHERE policy_id = $1 AND version = $2
-	`, snapshot.PolicyID, snapshot.Version).Scan(&existingHash)
+	`, snapshot.PolicyID, snapshot.Version).Scan(&existingHash, &existingVerified)
 	switch {
-	case err == nil && existingHash == snapshot.Hash:
+	case err == nil && existingHash == snapshot.Hash && existingVerified:
 		return tx.Commit()
 	case err == nil:
 		return policy.ErrVersionConflict
@@ -54,10 +56,13 @@ func (s *Store) Add(ctx context.Context, version *policy.Version) error {
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO policy_versions (
 			policy_id, version, schema_version, effective_from,
-			effective_until, policy_hash, snapshot
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+			effective_until, policy_hash, snapshot, signer_id, key_id,
+			signature_algorithm, signed_at, signature_value
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`, snapshot.PolicyID, snapshot.Version, snapshot.SchemaVersion,
-		snapshot.EffectiveFrom, snapshot.EffectiveUntil, snapshot.Hash, payload)
+		snapshot.EffectiveFrom, snapshot.EffectiveUntil, snapshot.Hash, payload,
+		signature.SignerID, signature.KeyID, signature.Algorithm,
+		signature.SignedAt, signature.Value)
 	if isExclusionViolation(err) {
 		return policy.ErrEffectiveOverlap
 	}
@@ -81,6 +86,7 @@ func (s *Store) Resolve(ctx context.Context, policyID string, at time.Time) (*po
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT snapshot FROM policy_versions
 		 WHERE policy_id = $1
+		   AND signature_value IS NOT NULL
 		   AND effective_from <= $2
 		   AND (effective_until IS NULL OR $2 < effective_until)
 		 ORDER BY effective_from, version

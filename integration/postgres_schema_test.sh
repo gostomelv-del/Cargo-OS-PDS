@@ -8,7 +8,7 @@ PDS_DATABASE_URL="$DATABASE_URL" go run ./cmd/pds-migrate
 
 migration_count="$(psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
     "SELECT COUNT(*) FROM cargoos_schema_migrations;")"
-test "$migration_count" = "3"
+test "$migration_count" = "4"
 
 go test ./persistence/postgres -run TestPostgresPolicyRegistry -count=1
 
@@ -136,6 +136,20 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
         '{}'
     );
 "
+
+if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
+    INSERT INTO policy_versions (
+        policy_id, version, schema_version, effective_from,
+        policy_hash, snapshot, signer_id
+    ) VALUES (
+        'partial-signature', 'v1', '1', '2026-07-20T00:00:00Z',
+        'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+        '{}', 'policy-authority'
+    );
+"; then
+  echo "Expected incomplete policy signature metadata to fail"
+  exit 1
+fi
 
 if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
     "UPDATE evidence_objects SET source_id = 'changed' WHERE evidence_id = '$evidence_id';"; then

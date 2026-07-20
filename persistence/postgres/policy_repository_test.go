@@ -2,7 +2,9 @@ package postgres
 
 import (
 	"context"
+	"crypto/ed25519"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,6 +29,27 @@ func testPolicyVersion(t *testing.T, policyID, version string, from time.Time, u
 		t.Fatal(err)
 	}
 	return value
+}
+
+func testVerifiedPolicy(t *testing.T, version *policy.Version, signedAt time.Time) *policy.VerifiedVersion {
+	t.Helper()
+	privateKey := ed25519.NewKeyFromSeed(make([]byte, ed25519.SeedSize))
+	trustStore, _ := policy.NewMemoryTrustStore(policy.VerificationKey{
+		SignerID: "policy-authority", KeyID: "test-key", Algorithm: policy.AlgorithmEd25519,
+		PublicKey: privateKey.Public().(ed25519.PublicKey), ValidFrom: signedAt.Add(-time.Hour),
+	})
+	verifier, _ := policy.NewVerifier(trustStore)
+	signature := policy.Signature{
+		SignerID: "policy-authority", KeyID: "test-key", Algorithm: policy.AlgorithmEd25519,
+		SignedAt: signedAt,
+	}
+	payload, _ := policy.SigningPayload(version, signature)
+	signature.Value = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, payload))
+	verified, err := verifier.Verify(context.Background(), version, signature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return verified
 }
 
 func TestPolicySnapshotCodecRoundTrip(t *testing.T) {
@@ -69,23 +92,24 @@ func TestPostgresPolicyRegistry(t *testing.T) {
 	boundary := from.Add(24 * time.Hour)
 	first := testPolicyVersion(t, policyID, "v1", from, &boundary, `{"limit":100}`)
 	second := testPolicyVersion(t, policyID, "v2", boundary, nil, `{"limit":110}`)
-	if err = store.Add(ctx, first); err != nil {
+	verifiedFirst := testVerifiedPolicy(t, first, from)
+	if err = store.Add(ctx, verifiedFirst); err != nil {
 		t.Fatal(err)
 	}
-	if err = store.Add(ctx, first); err != nil {
+	if err = store.Add(ctx, verifiedFirst); err != nil {
 		t.Fatalf("idempotent add failed: %v", err)
 	}
-	if err = store.Add(ctx, second); err != nil {
+	if err = store.Add(ctx, testVerifiedPolicy(t, second, boundary)); err != nil {
 		t.Fatalf("adjacent period rejected: %v", err)
 	}
 
 	conflict := testPolicyVersion(t, policyID, "v1", from, &boundary, `{"limit":999}`)
-	if err = store.Add(ctx, conflict); !errors.Is(err, policy.ErrVersionConflict) {
+	if err = store.Add(ctx, testVerifiedPolicy(t, conflict, from)); !errors.Is(err, policy.ErrVersionConflict) {
 		t.Fatalf("expected version conflict, got %v", err)
 	}
 	overlapUntil := boundary.Add(time.Hour)
 	overlap := testPolicyVersion(t, policyID, "overlap", boundary.Add(-time.Hour), &overlapUntil, `{"limit":105}`)
-	if err = store.Add(ctx, overlap); !errors.Is(err, policy.ErrEffectiveOverlap) {
+	if err = store.Add(ctx, testVerifiedPolicy(t, overlap, boundary)); !errors.Is(err, policy.ErrEffectiveOverlap) {
 		t.Fatalf("expected effective overlap, got %v", err)
 	}
 
