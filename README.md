@@ -40,6 +40,10 @@ events, Decision Traces, and every Rule Operator input.
 The `EXISTENCE` operator verifies that at least `min_count` qualified
 observations exist for a configured Evidence type and optional source. A count
 below the mandatory threshold produces an explicit failing Rule Outcome.
+The in-memory Policy Registry stores immutable canonical policy versions,
+rejects overlapping effective periods, and resolves exactly one version at the
+Evaluation creation time. Resolution binds the resulting policy identity and
+hash only when its ordered required-rule plan exactly matches the Evaluation.
 
 ## Requirements
 
