@@ -9,7 +9,7 @@ CREATE TABLE policy_versions (
     effective_from TIMESTAMPTZ NOT NULL,
     effective_until TIMESTAMPTZ,
     policy_hash TEXT NOT NULL CHECK (policy_hash ~ '^sha256:[0-9a-f]{64}$'),
-    snapshot JSONB NOT NULL,
+    snapshot BYTEA NOT NULL,
     stored_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (policy_id, version),
     CHECK (effective_until IS NULL OR effective_until > effective_from),
