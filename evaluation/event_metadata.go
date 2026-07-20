@@ -48,6 +48,9 @@ func (e RequiredRuleRegisteredEvent) Metadata() EventMetadata {
 func (e EvidenceSetBoundEvent) Metadata() EventMetadata {
 	return EventMetadata{"EvidenceSetBoundEvent", e.EvaluationID, e.SessionID, e.Version, e.Binding.QualifiedAt}
 }
+func (e VerificationPolicyBoundEvent) Metadata() EventMetadata {
+	return EventMetadata{"VerificationPolicyBoundEvent", e.EvaluationID, e.SessionID, e.Version, e.Binding.BoundAt}
+}
 func (e RuleOutcomeBatchRecordedEvent) Metadata() EventMetadata {
 	return EventMetadata{"RuleOutcomeBatchRecordedEvent", e.EvaluationID, e.SessionID, e.Version, e.RecordedAt}
 }
