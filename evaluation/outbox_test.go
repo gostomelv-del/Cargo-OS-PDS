@@ -228,7 +228,7 @@ func TestBuildOutboxRecordsAfterRuleOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(records) != 2 || records[1].EventType != "RuleOutcomeRecordedEvent" {
+	if len(records) != 3 || records[2].EventType != "RuleOutcomeRecordedEvent" {
 		t.Fatalf("unexpected records: %#v", records)
 	}
 }
