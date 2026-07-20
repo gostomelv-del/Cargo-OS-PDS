@@ -37,6 +37,9 @@ The standard Rule Execution path also requires the exact verification
 `policy_id`, immutable version, and canonical SHA-256 policy hash to be bound
 before Rule Outcomes exist. The identity is persisted in snapshots, outbox
 events, Decision Traces, and every Rule Operator input.
+The `EXISTENCE` operator verifies that at least `min_count` qualified
+observations exist for a configured Evidence type and optional source. A count
+below the mandatory threshold produces an explicit failing Rule Outcome.
 
 ## Requirements
 
