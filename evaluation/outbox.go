@@ -120,7 +120,7 @@ func NewOutboxRecord(event DomainEvent, createdAt time.Time) (OutboxRecord, erro
 	}
 	version := versionField.Uint()
 	occurredAt := time.Time{}
-	for _, name := range []string{"OccurredAt", "CreatedAt", "StartedAt", "CompletedAt", "RequiredAt", "CancelledAt", "ExpiredAt", "RecordedAt", "ReplacedAt", "RemovedAt", "ResetAt", "CheckpointedAt", "RolledBackAt"} {
+	for _, name := range []string{"OccurredAt", "CreatedAt", "StartedAt", "CompletedAt", "RequiredAt", "RegisteredAt", "EvaluatedAt", "CancelledAt", "ExpiredAt", "RecordedAt", "ReplacedAt", "RemovedAt", "ResetAt", "CheckpointedAt", "RolledBackAt"} {
 		f := value.FieldByName(name)
 		if f.IsValid() {
 			if t, ok := f.Interface().(time.Time); ok {
