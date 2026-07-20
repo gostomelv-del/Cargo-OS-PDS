@@ -6,6 +6,8 @@ This directory contains the reconstructed Stage 6 Go module extracted from
 The module now includes the immutable canonical Evidence Object foundation:
 source identity, session binding, canonical JSON payloads, provenance,
 confidence metadata, version metadata, and SHA-256 integrity verification.
+Accepted Evidence Objects can be stored idempotently in PostgreSQL; database
+triggers prevent their update or deletion after acceptance.
 
 ## Requirements
 
