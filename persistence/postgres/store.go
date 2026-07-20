@@ -10,12 +10,13 @@ import (
 	"github.com/google/uuid"
 
 	"cargoos/evaluation"
+	"cargoos/pds"
 )
 
 var (
 	ErrDatabaseRequired                 = errors.New("postgres: database is required")
-	ErrEvaluationNotFound               = errors.New("postgres: evaluation not found")
-	ErrEvaluationConcurrentModification = errors.New("postgres: evaluation concurrently modified")
+	ErrEvaluationNotFound               = pds.ErrEvaluationNotFound
+	ErrEvaluationConcurrentModification = pds.ErrConcurrentModification
 	ErrInvalidExpectedVersion           = errors.New("postgres: invalid expected version")
 	ErrInvalidOutboxRecord              = errors.New("postgres: invalid outbox record")
 )

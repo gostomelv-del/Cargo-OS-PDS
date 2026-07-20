@@ -2,15 +2,12 @@ package pds
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/google/uuid"
 
 	"cargoos/evaluation"
 )
-
-var ErrConcurrentModification = errors.New("pds: concurrent modification")
 
 type MemoryStore struct {
 	mu        sync.RWMutex

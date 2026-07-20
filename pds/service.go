@@ -11,6 +11,7 @@ import (
 )
 
 var ErrEvaluationNotFound = errors.New("pds: evaluation not found")
+var ErrConcurrentModification = errors.New("pds: concurrent modification")
 
 type Clock func() time.Time
 
