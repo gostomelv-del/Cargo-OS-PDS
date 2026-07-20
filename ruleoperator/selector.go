@@ -82,33 +82,45 @@ func selectValue(input pds.RuleInput, selector Selector) (any, *pds.RuleDecision
 	if len(matches) > 1 {
 		return nil, inconclusive(reasonEvidenceAmbiguous)
 	}
-	value, err := decodeJSON(matches[0].Payload)
+	value, reason := valueAtSnapshot(matches[0], selector.JSONPointer)
+	if reason != "" {
+		return nil, inconclusive(reason)
+	}
+	return value, nil
+}
+
+func selectorMatches(snapshot evidence.Snapshot, selector Selector) bool {
+	return snapshot.EvidenceType == selector.EvidenceType && (selector.SourceID == "" || snapshot.SourceID == selector.SourceID)
+}
+
+func valueAtSnapshot(snapshot evidence.Snapshot, pointer string) (any, evaluation.ReasonCode) {
+	value, err := decodeJSON(snapshot.Payload)
 	if err != nil {
-		return nil, inconclusive(reasonInvalidValue)
+		return nil, reasonInvalidValue
 	}
-	if selector.JSONPointer == "" {
-		return value, nil
+	if pointer == "" {
+		return value, ""
 	}
-	for _, encoded := range strings.Split(strings.TrimPrefix(selector.JSONPointer, "/"), "/") {
+	for _, encoded := range strings.Split(strings.TrimPrefix(pointer, "/"), "/") {
 		token := strings.ReplaceAll(strings.ReplaceAll(encoded, "~1", "/"), "~0", "~")
 		switch current := value.(type) {
 		case map[string]any:
 			var found bool
 			value, found = current[token]
 			if !found {
-				return nil, inconclusive(reasonFieldNotFound)
+				return nil, reasonFieldNotFound
 			}
 		case []any:
 			index, parseErr := strconv.Atoi(token)
 			if parseErr != nil || index < 0 || index >= len(current) {
-				return nil, inconclusive(reasonFieldNotFound)
+				return nil, reasonFieldNotFound
 			}
 			value = current[index]
 		default:
-			return nil, inconclusive(reasonFieldNotFound)
+			return nil, reasonFieldNotFound
 		}
 	}
-	return value, nil
+	return value, ""
 }
 
 func decodeJSON(raw []byte) (any, error) {
