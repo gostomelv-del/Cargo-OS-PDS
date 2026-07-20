@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -61,6 +62,30 @@ func TestCompletionRejectsMissingRequiredRule(t *testing.T) {
 
 func TestHealth(t *testing.T) {
 	perform(t, NewHandler(pds.NewService(nil)), http.MethodGet, "/healthz", "", http.StatusOK)
+}
+
+func TestServiceErrorMapping(t *testing.T) {
+	tests := []struct {
+		name   string
+		err    error
+		status int
+		body   string
+	}{
+		{name: "not found", err: pds.ErrEvaluationNotFound, status: http.StatusNotFound, body: "evaluation_not_found"},
+		{name: "concurrent modification", err: pds.ErrConcurrentModification, status: http.StatusConflict, body: "concurrent_modification"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			new(Handler).writeServiceError(recorder, test.err)
+			if recorder.Code != test.status {
+				t.Fatalf("expected status %d, got %d", test.status, recorder.Code)
+			}
+			if !strings.Contains(recorder.Body.String(), test.body) {
+				t.Fatalf("expected body to contain %q, got %q", test.body, recorder.Body.String())
+			}
+		})
+	}
 }
 
 func perform(
