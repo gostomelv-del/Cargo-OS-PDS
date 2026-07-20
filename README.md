@@ -6,6 +6,29 @@ This directory contains the reconstructed Stage 6 Go module extracted from
 ## Requirements
 
 - Go 1.22 or later
+- PostgreSQL 16 when durable runtime storage is enabled
+
+## Run the HTTP API
+
+For a local, non-durable demonstration:
+
+```sh
+go run ./cmd/pds-server
+```
+
+For durable storage, apply the migration and provide a PostgreSQL connection
+URL before starting the server:
+
+```sh
+psql "$PDS_DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f migrations/0001_evaluation_persistence.sql
+PDS_DATABASE_URL="postgres://cargoos:cargoos@localhost:5432/cargoos?sslmode=disable" \
+  go run ./cmd/pds-server
+```
+
+`PDS_HTTP_ADDRESS` optionally changes the listen address from the default
+`:8080`. The process verifies the database connection at startup and shuts down
+gracefully on `SIGINT` or `SIGTERM`.
 
 ## Verification
 
