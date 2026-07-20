@@ -27,7 +27,7 @@ func verifiedForTest(t *testing.T, version *Version, signedAt time.Time) *Verifi
 	}
 	payload, _ := SigningPayload(version, signature)
 	signature.Value = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, payload))
-	verified, err := verifier.Verify(context.Background(), version, signature)
+	verified, err := verifier.Verify(context.Background(), version, signature, signedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
