@@ -17,11 +17,11 @@ type RuleOutcome struct {
 type RuleOutcomeRecordedEvent struct {
 	EvaluationID uuid.UUID
 	SessionID    uuid.UUID
-	RuleID      string
-	Status      RuleOutcomeStatus
-	ReasonCodes []ReasonCode
-	EvaluatedAt time.Time
-	Version     uint64
+	RuleID       string
+	Status       RuleOutcomeStatus
+	ReasonCodes  []ReasonCode
+	EvaluatedAt  time.Time
+	Version      uint64
 }
 
 func (e *EvaluationAggregate) RecordRuleOutcome(o RuleOutcome) error {
@@ -70,6 +70,7 @@ func (e *EvaluationAggregate) RuleOutcomes() []RuleOutcome {
 	}
 	return out
 }
+
 type RequiredRuleRegisteredEvent struct {
 	EvaluationID uuid.UUID
 	SessionID    uuid.UUID
