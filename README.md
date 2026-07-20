@@ -41,12 +41,19 @@ with `psql`, but managed deployments should use `pds-migrate`.
 `PDS_HTTP_ADDRESS` optionally changes the listen address from the default
 `:8080`. The process verifies the database connection at startup and shuts down
 gracefully on `SIGINT` or `SIGTERM`.
+`PDS_RUNTIME_VERSION` anchors accepted Evidence to the running build; it defaults
+to `cargoos-pds.dev` for local development.
 
 The server exposes two operational probes:
 
 - `GET /healthz` reports process liveness.
 - `GET /readyz` reports readiness. In PostgreSQL mode it verifies connectivity
   and confirms that all required PDS tables exist.
+
+The first Evidence API endpoints are:
+
+- `POST /v1/evidence` accepts and canonicalizes an Evidence Object.
+- `GET /v1/evidence/{evidence_id}` returns the exact accepted object.
 
 ## Verification
 
