@@ -16,37 +16,74 @@ var (
 
 type Registry struct {
 	mu       sync.RWMutex
-	versions map[string]map[string]Snapshot
+	versions map[string]map[string]registryEntry
+}
+
+type registryEntry struct {
+	snapshot Snapshot
+	status   LifecycleStatus
+	statusAt time.Time
 }
 
 func NewRegistry() *Registry {
-	return &Registry{versions: make(map[string]map[string]Snapshot)}
+	return &Registry{versions: make(map[string]map[string]registryEntry)}
 }
 
-func (r *Registry) Add(_ context.Context, verified *VerifiedVersion) error {
-	if verified == nil || verified.Version() == nil {
+func (r *Registry) Add(_ context.Context, activated *ActivatedVersion) error {
+	if activated == nil || activated.VerifiedVersion() == nil || activated.VerifiedVersion().Version() == nil {
 		return ErrPolicyNotFound
 	}
-	snapshot := verified.Version().Snapshot()
+	snapshot := activated.VerifiedVersion().Version().Snapshot()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	byVersion := r.versions[snapshot.PolicyID]
 	if byVersion == nil {
-		byVersion = make(map[string]Snapshot)
+		byVersion = make(map[string]registryEntry)
 		r.versions[snapshot.PolicyID] = byVersion
 	}
 	if existing, found := byVersion[snapshot.Version]; found {
-		if existing.Hash == snapshot.Hash {
+		if existing.snapshot.Hash == snapshot.Hash {
 			return nil
 		}
 		return ErrVersionConflict
 	}
 	for _, existing := range byVersion {
-		if effectivePeriodsOverlap(existing, snapshot) {
+		if effectivePeriodsOverlap(existing.snapshot, snapshot) {
 			return ErrEffectiveOverlap
 		}
 	}
-	byVersion[snapshot.Version] = copySnapshot(snapshot)
+	byVersion[snapshot.Version] = registryEntry{
+		snapshot: copySnapshot(snapshot), status: LifecycleActive, statusAt: activated.ActivatedAt(),
+	}
+	return nil
+}
+
+func (r *Registry) Suspend(_ context.Context, policyID, version string, at time.Time) error {
+	return r.transition(policyID, version, LifecycleSuspended, at)
+}
+
+func (r *Registry) Retire(_ context.Context, policyID, version string, at time.Time) error {
+	return r.transition(policyID, version, LifecycleRetired, at)
+}
+
+func (r *Registry) transition(policyID, version string, target LifecycleStatus, at time.Time) error {
+	if at.IsZero() {
+		return ErrInvalidLifecycleChange
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	entry, found := r.versions[policyID][version]
+	if !found || at.UTC().Before(entry.statusAt) {
+		return ErrInvalidLifecycleChange
+	}
+	valid := (entry.status == LifecycleActive && (target == LifecycleSuspended || target == LifecycleRetired)) ||
+		(entry.status == LifecycleSuspended && target == LifecycleRetired)
+	if !valid {
+		return ErrInvalidLifecycleChange
+	}
+	entry.status = target
+	entry.statusAt = at.UTC()
+	r.versions[policyID][version] = entry
 	return nil
 }
 
@@ -54,9 +91,9 @@ func (r *Registry) Resolve(_ context.Context, policyID string, at time.Time) (*V
 	r.mu.RLock()
 	byVersion := r.versions[policyID]
 	matches := make([]Snapshot, 0, 1)
-	for _, snapshot := range byVersion {
-		if effectiveAt(snapshot, at) {
-			matches = append(matches, copySnapshot(snapshot))
+	for _, entry := range byVersion {
+		if entry.status == LifecycleActive && !at.Before(entry.statusAt) && effectiveAt(entry.snapshot, at) {
+			matches = append(matches, copySnapshot(entry.snapshot))
 		}
 	}
 	r.mu.RUnlock()

@@ -40,7 +40,15 @@ func resolutionRegistry(t *testing.T, from time.Time, rules []string) *policy.Re
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = registry.Add(context.Background(), verified); err != nil {
+	snapshot := version.Snapshot()
+	activated, err := policy.Activate(verified, policy.ApprovalRecord{
+		PolicyID: snapshot.PolicyID, Version: snapshot.Version, PolicyHash: snapshot.Hash,
+		ApprovedBy: "policy-review-board", ApprovedAt: from,
+	}, from)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = registry.Add(context.Background(), activated); err != nil {
 		t.Fatal(err)
 	}
 	return registry
