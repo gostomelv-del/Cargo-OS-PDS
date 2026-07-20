@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
@@ -15,18 +16,20 @@ import (
 const AlgorithmEd25519 = "ED25519"
 
 var (
-	ErrSignatureRequired     = errors.New("policy: signature is required")
-	ErrSignerIDRequired      = errors.New("policy: signer ID is required")
-	ErrKeyIDRequired         = errors.New("policy: key ID is required")
-	ErrAlgorithmRequired     = errors.New("policy: signature algorithm is required")
-	ErrSignedAtRequired      = errors.New("policy: signature time is required")
-	ErrTrustStoreRequired    = errors.New("policy: trust store is required")
-	ErrVerificationKeyAbsent = errors.New("policy: trusted verification key not found")
-	ErrUnsupportedAlgorithm  = errors.New("policy: unsupported signature algorithm")
-	ErrInvalidSignature      = errors.New("policy: invalid signature")
-	ErrKeyNotYetValid        = errors.New("policy: verification key is not yet valid")
-	ErrKeyExpired            = errors.New("policy: verification key is expired")
-	ErrKeyRevoked            = errors.New("policy: verification key is revoked")
+	ErrSignatureRequired        = errors.New("policy: signature is required")
+	ErrSignerIDRequired         = errors.New("policy: signer ID is required")
+	ErrKeyIDRequired            = errors.New("policy: key ID is required")
+	ErrAlgorithmRequired        = errors.New("policy: signature algorithm is required")
+	ErrSignedAtRequired         = errors.New("policy: signature time is required")
+	ErrVerificationTimeRequired = errors.New("policy: verification time is required")
+	ErrTrustStoreRequired       = errors.New("policy: trust store is required")
+	ErrVerificationKeyAbsent    = errors.New("policy: trusted verification key not found")
+	ErrUnsupportedAlgorithm     = errors.New("policy: unsupported signature algorithm")
+	ErrInvalidSignature         = errors.New("policy: invalid signature")
+	ErrKeyNotYetValid           = errors.New("policy: verification key is not yet valid")
+	ErrKeyExpired               = errors.New("policy: verification key is expired")
+	ErrKeyRevoked               = errors.New("policy: verification key is revoked")
+	ErrVerificationKeyConflict  = errors.New("policy: verification key identity already contains different material")
 )
 
 type Signature struct {
@@ -91,7 +94,7 @@ func SigningPayload(version *Version, signature Signature) ([]byte, error) {
 	return digest[:], nil
 }
 
-func (v *Verifier) Verify(ctx context.Context, version *Version, signature Signature) (*VerifiedVersion, error) {
+func (v *Verifier) Verify(ctx context.Context, version *Version, signature Signature, verifiedAt time.Time) (*VerifiedVersion, error) {
 	if v == nil || v.trustStore == nil {
 		return nil, ErrTrustStoreRequired
 	}
@@ -102,6 +105,7 @@ func (v *Verifier) Verify(ctx context.Context, version *Version, signature Signa
 	signature.KeyID = strings.TrimSpace(signature.KeyID)
 	signature.Algorithm = strings.TrimSpace(signature.Algorithm)
 	signature.SignedAt = signature.SignedAt.UTC()
+	verifiedAt = verifiedAt.UTC()
 	switch {
 	case signature.SignerID == "":
 		return nil, ErrSignerIDRequired
@@ -113,6 +117,8 @@ func (v *Verifier) Verify(ctx context.Context, version *Version, signature Signa
 		return nil, ErrSignedAtRequired
 	case signature.Value == "":
 		return nil, ErrSignatureRequired
+	case verifiedAt.IsZero():
+		return nil, ErrVerificationTimeRequired
 	}
 	key, err := v.trustStore.ResolveVerificationKey(ctx, signature.SignerID, signature.KeyID)
 	if err != nil {
@@ -131,6 +137,12 @@ func (v *Verifier) Verify(ctx context.Context, version *Version, signature Signa
 		return nil, ErrKeyExpired
 	}
 	if key.RevokedAt != nil && !signature.SignedAt.Before(key.RevokedAt.UTC()) {
+		return nil, ErrKeyRevoked
+	}
+	if key.ValidUntil != nil && !verifiedAt.Before(key.ValidUntil.UTC()) {
+		return nil, ErrKeyExpired
+	}
+	if key.RevokedAt != nil && !verifiedAt.Before(key.RevokedAt.UTC()) {
 		return nil, ErrKeyRevoked
 	}
 	value, err := base64.StdEncoding.DecodeString(signature.Value)
@@ -182,8 +194,38 @@ func (s *MemoryTrustStore) Add(key VerificationKey) error {
 	}
 	key.PublicKey = append([]byte(nil), key.PublicKey...)
 	s.mu.Lock()
-	s.keys[key.SignerID+"\x00"+key.KeyID] = key
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+	identity := key.SignerID + "\x00" + key.KeyID
+	if existing, found := s.keys[identity]; found {
+		if sameVerificationKey(existing, key) {
+			return nil
+		}
+		return ErrVerificationKeyConflict
+	}
+	s.keys[identity] = key
+	return nil
+}
+
+func (s *MemoryTrustStore) Revoke(signerID, keyID string, revokedAt time.Time) error {
+	if s == nil || revokedAt.IsZero() {
+		return ErrVerificationKeyAbsent
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	identity := strings.TrimSpace(signerID) + "\x00" + strings.TrimSpace(keyID)
+	key, found := s.keys[identity]
+	if !found {
+		return ErrVerificationKeyAbsent
+	}
+	revokedAt = revokedAt.UTC()
+	if key.RevokedAt != nil {
+		if key.RevokedAt.Equal(revokedAt) {
+			return nil
+		}
+		return ErrVerificationKeyConflict
+	}
+	key.RevokedAt = &revokedAt
+	s.keys[identity] = key
 	return nil
 }
 
@@ -199,4 +241,14 @@ func (s *MemoryTrustStore) ResolveVerificationKey(_ context.Context, signerID, k
 	}
 	key.PublicKey = append([]byte(nil), key.PublicKey...)
 	return key, nil
+}
+
+func sameVerificationKey(left, right VerificationKey) bool {
+	return left.SignerID == right.SignerID && left.KeyID == right.KeyID && left.Algorithm == right.Algorithm &&
+		bytes.Equal(left.PublicKey, right.PublicKey) && left.ValidFrom.Equal(right.ValidFrom) &&
+		sameOptionalTime(left.ValidUntil, right.ValidUntil) && sameOptionalTime(left.RevokedAt, right.RevokedAt)
+}
+
+func sameOptionalTime(left, right *time.Time) bool {
+	return (left == nil && right == nil) || (left != nil && right != nil && left.Equal(*right))
 }
