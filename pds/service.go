@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"cargoos/evaluation"
+	"cargoos/evidence"
 )
 
 var ErrEvaluationNotFound = errors.New("pds: evaluation not found")
@@ -100,6 +101,50 @@ func (s *Service) RecordOutcome(
 		return evaluation.EvaluationSnapshot{}, err
 	}
 	return aggregate.Snapshot()
+}
+
+// BindEvidenceQualification anchors the exact qualification result used by an
+// Evaluation before any Rule Outcome is recorded.
+func (s *Service) BindEvidenceQualification(
+	ctx context.Context,
+	id uuid.UUID,
+	result evidence.SessionQualificationResult,
+) (evaluation.EvaluationSnapshot, error) {
+	aggregate, err := s.find(ctx, id)
+	if err != nil {
+		return evaluation.EvaluationSnapshot{}, err
+	}
+	expectedVersion := aggregate.Version()
+	binding := evaluation.EvidenceSetBinding{
+		SessionID:     result.SessionID,
+		Status:        evaluation.EvidenceQualificationStatus(result.Status),
+		PolicyVersion: result.PolicyVersion,
+		QualifiedAt:   result.EvaluatedAt,
+		Reasons:       qualificationReasons(result.Reasons),
+		Evidence:      make([]evaluation.EvidenceReference, 0, len(result.Evidence)),
+	}
+	for _, qualified := range result.Evidence {
+		binding.Evidence = append(binding.Evidence, evaluation.EvidenceReference{
+			EvidenceID: qualified.EvidenceID,
+			Status:     evaluation.EvidenceQualificationStatus(qualified.Status),
+			Reasons:    qualificationReasons(qualified.Reasons),
+		})
+	}
+	if err = aggregate.BindEvidenceSet(binding); err != nil {
+		return evaluation.EvaluationSnapshot{}, err
+	}
+	if err = s.save(ctx, aggregate, expectedVersion); err != nil {
+		return evaluation.EvaluationSnapshot{}, err
+	}
+	return aggregate.Snapshot()
+}
+
+func qualificationReasons(reasons []evidence.QualificationReason) []string {
+	result := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		result = append(result, string(reason.Code))
+	}
+	return result
 }
 
 func (s *Service) Complete(ctx context.Context, id uuid.UUID) (evaluation.DecisionTrace, error) {
