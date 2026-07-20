@@ -89,6 +89,41 @@ func (s *Store) FindEvidence(ctx context.Context, id uuid.UUID) (*evidence.Objec
 	return decodeEvidenceSnapshot(payload)
 }
 
+func (s *Store) ListEvidenceBySession(ctx context.Context, sessionID uuid.UUID) ([]*evidence.Object, error) {
+	if s == nil || s.db == nil {
+		return nil, ErrDatabaseRequired
+	}
+	if sessionID == uuid.Nil {
+		return nil, evidence.ErrSessionIDRequired
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT snapshot
+		  FROM evidence_objects
+		 WHERE session_id = $1
+		 ORDER BY observed_at, evidence_id
+	`, sessionID.String())
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list session evidence: %w", err)
+	}
+	defer rows.Close()
+	objects := make([]*evidence.Object, 0)
+	for rows.Next() {
+		var payload []byte
+		if err = rows.Scan(&payload); err != nil {
+			return nil, fmt.Errorf("postgres: scan session evidence: %w", err)
+		}
+		object, decodeErr := decodeEvidenceSnapshot(payload)
+		if decodeErr != nil {
+			return nil, decodeErr
+		}
+		objects = append(objects, object)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("postgres: iterate session evidence: %w", err)
+	}
+	return objects, nil
+}
+
 func decodeEvidenceSnapshot(payload []byte) (*evidence.Object, error) {
 	var snapshot evidence.Snapshot
 	if err := json.Unmarshal(payload, &snapshot); err != nil {
