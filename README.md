@@ -3,6 +3,10 @@
 This directory contains the reconstructed Stage 6 Go module extracted from
 `CargoCore_Go_Stage6_Full_Code_ENGLISH.txt`.
 
+The module now includes the immutable canonical Evidence Object foundation:
+source identity, session binding, canonical JSON payloads, provenance,
+confidence metadata, version metadata, and SHA-256 integrity verification.
+
 ## Requirements
 
 - Go 1.22 or later
