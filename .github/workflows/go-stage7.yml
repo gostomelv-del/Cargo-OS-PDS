@@ -24,7 +24,7 @@ jobs:
 
       - name: Verify source formatting
         run: |
-          unformatted="$(find evaluation persistence third_party/google_uuid -name '*.go' -print0 | xargs -0 gofmt -l)"
+          unformatted="$(find . -name '*.go' -print0 | xargs -0 gofmt -l)"
           if [ -n "$unformatted" ]; then
             echo "The following files require gofmt:"
             echo "$unformatted"
