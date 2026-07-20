@@ -147,6 +147,25 @@ func qualificationReasons(reasons []evidence.QualificationReason) []string {
 	return result
 }
 
+func (s *Service) BindVerificationPolicy(
+	ctx context.Context,
+	id uuid.UUID,
+	binding evaluation.PolicyBinding,
+) (evaluation.EvaluationSnapshot, error) {
+	aggregate, err := s.find(ctx, id)
+	if err != nil {
+		return evaluation.EvaluationSnapshot{}, err
+	}
+	expectedVersion := aggregate.Version()
+	if err = aggregate.BindVerificationPolicy(binding); err != nil {
+		return evaluation.EvaluationSnapshot{}, err
+	}
+	if err = s.save(ctx, aggregate, expectedVersion); err != nil {
+		return evaluation.EvaluationSnapshot{}, err
+	}
+	return aggregate.Snapshot()
+}
+
 func (s *Service) Complete(ctx context.Context, id uuid.UUID) (evaluation.DecisionTrace, error) {
 	aggregate, err := s.find(ctx, id)
 	if err != nil {
