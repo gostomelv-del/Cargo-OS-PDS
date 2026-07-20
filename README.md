@@ -30,6 +30,12 @@ PDS_DATABASE_URL="postgres://cargoos:cargoos@localhost:5432/cargoos?sslmode=disa
 `:8080`. The process verifies the database connection at startup and shuts down
 gracefully on `SIGINT` or `SIGTERM`.
 
+The server exposes two operational probes:
+
+- `GET /healthz` reports process liveness.
+- `GET /readyz` reports readiness. In PostgreSQL mode it verifies connectivity
+  and confirms that all required PDS tables exist.
+
 ## Verification
 
 Run from this directory:
