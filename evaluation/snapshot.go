@@ -29,6 +29,7 @@ type EvaluationSnapshot struct {
 	RuleOutcomes       []RuleOutcome
 	Checkpoints        []EvaluationCheckpoint
 	History            []EvaluationHistoryEntry
+	EvidenceBinding    *EvidenceSetBinding
 }
 
 func (e *EvaluationAggregate) Snapshot() (EvaluationSnapshot, error) {
@@ -52,6 +53,7 @@ func (e *EvaluationAggregate) Snapshot() (EvaluationSnapshot, error) {
 		RuleOutcomes:       copyRuleOutcomes(e.ruleOutcomes),
 		Checkpoints:        e.Checkpoints(),
 		History:            copyEvaluationHistory(e.history),
+		EvidenceBinding:    copyEvidenceBinding(e.evidenceBinding),
 	}, nil
 }
 
@@ -90,6 +92,7 @@ func RehydrateEvaluation(snapshot EvaluationSnapshot) (*EvaluationAggregate, err
 		requiredRuleIDs:    append([]string(nil), snapshot.RequiredRuleIDs...),
 		checkpoints:        checkpoints,
 		history:            copyEvaluationHistory(snapshot.History),
+		evidenceBinding:    copyEvidenceBinding(snapshot.EvidenceBinding),
 	}, nil
 }
 
@@ -137,6 +140,12 @@ func validateEvaluationSnapshot(snapshot EvaluationSnapshot) error {
 			return ErrInvalidEvaluationSnapshot
 		}
 	}
+	if snapshot.EvidenceBinding != nil {
+		binding, err := normalizeEvidenceBinding(*snapshot.EvidenceBinding)
+		if err != nil || binding.SessionID != snapshot.SessionID {
+			return ErrInvalidEvaluationSnapshot
+		}
+	}
 	return nil
 }
 
@@ -153,6 +162,7 @@ type DecisionTrace struct {
 	CreatedAt       time.Time
 	StartedAt       *time.Time
 	CompletedAt     *time.Time
+	EvidenceBinding *EvidenceSetBinding
 }
 
 func (e *EvaluationAggregate) DecisionTrace() (DecisionTrace, error) {
@@ -172,5 +182,6 @@ func (e *EvaluationAggregate) DecisionTrace() (DecisionTrace, error) {
 		CreatedAt:       e.createdAt,
 		StartedAt:       copyTimePointer(e.startedAt),
 		CompletedAt:     copyTimePointer(e.completedAt),
+		EvidenceBinding: copyEvidenceBinding(e.evidenceBinding),
 	}, nil
 }

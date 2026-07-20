@@ -70,6 +70,7 @@ type EvaluationAggregate struct {
 	requiredRuleIDs                                []string
 	checkpoints                                    map[string]EvaluationCheckpoint
 	history                                        []EvaluationHistoryEntry
+	evidenceBinding                                *EvidenceSetBinding
 }
 
 func NewEvaluation(id, sessionID uuid.UUID, createdAt time.Time) (*EvaluationAggregate, error) {
