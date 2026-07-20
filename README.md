@@ -52,6 +52,11 @@ domain-separated policy hash has been verified against a trusted, time-valid,
 non-revoked signing key. The initial cryptographic profile supports `ED25519`;
 algorithm identifiers and trust-store interfaces preserve algorithm agility,
 while private signing keys remain outside the PDS.
+Policy publication requires an exact Approval Record before activation. Active,
+suspended, and retired states are recorded as append-only lifecycle events;
+only the currently active version can be resolved for a new Evaluation, while
+the immutable policy and historical lifecycle records remain available for
+audit and replay.
 
 ## Requirements
 
