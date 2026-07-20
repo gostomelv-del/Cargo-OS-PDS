@@ -113,11 +113,14 @@ func (e *EvaluationAggregate) CompleteAt(result VerificationResult, reasons []Re
 	if !result.IsValid() || result == ResultUnknown {
 		return ErrInvalidCompletionResult
 	}
+	if !e.RequiredRulesComplete() {
+		return ErrRequiredRulesIncomplete
+	}
 	nr, err := normalizeReasonCodes(reasons)
 	if err != nil {
 		return err
 	}
-	if (result == ResultRejected || result == ResultManualReview || result == ResultSystemException) && len(nr) == 0 {
+	if (result == ResultRejected || result == ResultManualReview || result == ResultSystemException || result == ResultVerifiedWithException) && len(nr) == 0 {
 		return ErrInvalidCompletionResult
 	}
 	if (result == ResultVerified || result == ResultVerifiedWithException) && result == ResultVerified && len(nr) > 0 {

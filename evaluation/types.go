@@ -20,6 +20,7 @@ var (
 	ErrRuleIDRequired             = errors.New("evaluation: rule ID required")
 	ErrRuleOutcomeAlreadyRecorded = errors.New("evaluation: rule outcome already recorded")
 	ErrInvalidRuleOutcome         = errors.New("evaluation: invalid rule outcome")
+	ErrRequiredRulesIncomplete    = errors.New("evaluation: required rules incomplete")
 )
 
 type EvaluationState string

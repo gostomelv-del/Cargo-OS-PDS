@@ -209,7 +209,7 @@ func (e *EvaluationAggregate) RecordRuleOutcomesAtomic(outcomes []RuleOutcome) e
 		}
 		e.ruleOutcomes = append(e.ruleOutcomes, copyRuleOutcome(outcome))
 		e.version++
-		e.addDomainEvent(RuleOutcomeRecordedEvent{RuleID: outcome.RuleID, Status: outcome.Status, ReasonCodes: copyReasonCodes(outcome.ReasonCodes), EvaluatedAt: outcome.EvaluatedAt, Version: e.version})
+		e.addDomainEvent(RuleOutcomeRecordedEvent{EvaluationID: e.id, SessionID: e.sessionID, RuleID: outcome.RuleID, Status: outcome.Status, ReasonCodes: copyReasonCodes(outcome.ReasonCodes), EvaluatedAt: outcome.EvaluatedAt, Version: e.version})
 	}
 	return nil
 }

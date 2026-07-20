@@ -1,6 +1,7 @@
 package evaluation
 
 import (
+	"errors"
 	"github.com/google/uuid"
 	"testing"
 	"time"
@@ -51,5 +52,42 @@ func TestDuplicateOutcomeIsIdempotent(t *testing.T) {
 	}
 	if e.Version() != version || len(e.DomainEvents()) != events {
 		t.Fatal("idempotent retry mutated aggregate")
+	}
+}
+
+func TestRequiredRulesMustBeComplete(t *testing.T) {
+	base := time.Now().UTC()
+	e, err := NewEvaluation(uuid.New(), uuid.New(), base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = e.RegisterRequiredRuleAt("weight", base); err != nil {
+		t.Fatal(err)
+	}
+	if err = e.RegisterRequiredRuleAt("destination", base); err != nil {
+		t.Fatal(err)
+	}
+	if err = e.Start(base); err != nil {
+		t.Fatal(err)
+	}
+	if err = e.RecordRuleOutcome(RuleOutcome{RuleID: "weight", Status: RuleOutcomePass, EvaluatedAt: base}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = e.DeriveResult(); !errors.Is(err, ErrRequiredRulesIncomplete) {
+		t.Fatalf("expected required-rules error, got %v", err)
+	}
+	if err = e.CompleteAt(ResultVerified, nil, base.Add(time.Second)); !errors.Is(err, ErrRequiredRulesIncomplete) {
+		t.Fatalf("expected completion to be rejected, got %v", err)
+	}
+}
+
+func TestRequiredRulesCannotChangeAfterCompletion(t *testing.T) {
+	base := time.Now().UTC()
+	e, _ := NewEvaluation(uuid.New(), uuid.New(), base)
+	_ = e.Start(base)
+	_ = e.RecordRuleOutcome(RuleOutcome{RuleID: "weight", Status: RuleOutcomePass, EvaluatedAt: base})
+	_ = e.CompleteAt(ResultVerified, nil, base.Add(time.Second))
+	if err := e.RegisterRequiredRuleAt("late-rule", base.Add(2*time.Second)); !errors.Is(err, ErrInvalidStateTransition) {
+		t.Fatalf("expected terminal-state rejection, got %v", err)
 	}
 }

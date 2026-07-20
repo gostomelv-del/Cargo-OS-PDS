@@ -3,6 +3,8 @@ package evaluation
 import (
 	"fmt"
 	"strings"
+
+	"github.com/google/uuid"
 	"time"
 )
 
@@ -13,11 +15,13 @@ type RuleOutcome struct {
 	EvaluatedAt time.Time
 }
 type RuleOutcomeRecordedEvent struct {
-	RuleID      string
-	Status      RuleOutcomeStatus
-	ReasonCodes []ReasonCode
-	EvaluatedAt time.Time
-	Version     uint64
+	EvaluationID uuid.UUID
+	SessionID    uuid.UUID
+	RuleID       string
+	Status       RuleOutcomeStatus
+	ReasonCodes  []ReasonCode
+	EvaluatedAt  time.Time
+	Version      uint64
 }
 
 func (e *EvaluationAggregate) RecordRuleOutcome(o RuleOutcome) error {
@@ -45,7 +49,7 @@ func (e *EvaluationAggregate) RecordRuleOutcome(o RuleOutcome) error {
 	}
 	e.ruleOutcomes = append(e.ruleOutcomes, copyRuleOutcome(normalized))
 	e.version++
-	e.addDomainEvent(RuleOutcomeRecordedEvent{normalized.RuleID, normalized.Status, copyReasonCodes(normalized.ReasonCodes), normalized.EvaluatedAt, e.version})
+	e.addDomainEvent(RuleOutcomeRecordedEvent{e.id, e.sessionID, normalized.RuleID, normalized.Status, copyReasonCodes(normalized.ReasonCodes), normalized.EvaluatedAt, e.version})
 	return nil
 }
 
@@ -66,7 +70,30 @@ func (e *EvaluationAggregate) RuleOutcomes() []RuleOutcome {
 	}
 	return out
 }
+
+type RequiredRuleRegisteredEvent struct {
+	EvaluationID uuid.UUID
+	SessionID    uuid.UUID
+	RuleID       string
+	RegisteredAt time.Time
+	Version      uint64
+}
+
 func (e *EvaluationAggregate) RegisterRequiredRule(id string) error {
+	return e.RegisterRequiredRuleAt(id, time.Now().UTC())
+}
+
+func (e *EvaluationAggregate) RegisterRequiredRuleAt(id string, registeredAt time.Time) error {
+	if e == nil {
+		return ErrInvalidEvaluationSnapshot
+	}
+	if e.state.IsTerminal() {
+		return ErrInvalidStateTransition
+	}
+	if registeredAt.IsZero() || registeredAt.Before(e.createdAt) {
+		return ErrInvalidRuleOutcomeTimestamp
+	}
+	registeredAt = registeredAt.UTC()
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return ErrRuleIDRequired
@@ -77,6 +104,8 @@ func (e *EvaluationAggregate) RegisterRequiredRule(id string) error {
 		}
 	}
 	e.requiredRuleIDs = append(e.requiredRuleIDs, id)
+	e.version++
+	e.addDomainEvent(RequiredRuleRegisteredEvent{e.id, e.sessionID, id, registeredAt, e.version})
 	return nil
 }
 func (e *EvaluationAggregate) MissingRequiredRuleIDs() []string {
@@ -96,6 +125,9 @@ func (e *EvaluationAggregate) RequiredRulesComplete() bool {
 	return len(e.MissingRequiredRuleIDs()) == 0
 }
 func (e *EvaluationAggregate) DeriveResult() (VerificationResult, []ReasonCode, error) {
+	if !e.RequiredRulesComplete() {
+		return ResultUnknown, nil, ErrRequiredRulesIncomplete
+	}
 	if len(e.ruleOutcomes) == 0 {
 		return ResultUnknown, nil, ErrInvalidRuleOutcome
 	}
