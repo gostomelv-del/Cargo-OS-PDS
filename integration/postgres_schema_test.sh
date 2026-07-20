@@ -3,7 +3,8 @@ set -euo pipefail
 
 : "${DATABASE_URL:?DATABASE_URL is required}"
 
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 +  -f migrations/0001_evaluation_persistence.sql
+PDS_DATABASE_URL="$DATABASE_URL" go run ./cmd/pds-migrate
+PDS_DATABASE_URL="$DATABASE_URL" go run ./cmd/pds-migrate
 
 evaluation_id="00000000-0000-4000-8000-000000000001"
 session_id="00000000-0000-4000-8000-000000000002"
