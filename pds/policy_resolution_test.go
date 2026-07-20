@@ -2,6 +2,8 @@ package pds
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -22,7 +24,23 @@ func resolutionRegistry(t *testing.T, from time.Time, rules []string) *policy.Re
 		t.Fatal(err)
 	}
 	registry := policy.NewRegistry()
-	if err = registry.Add(context.Background(), version); err != nil {
+	privateKey := ed25519.NewKeyFromSeed(make([]byte, ed25519.SeedSize))
+	trustStore, _ := policy.NewMemoryTrustStore(policy.VerificationKey{
+		SignerID: "policy-authority", KeyID: "test-key", Algorithm: policy.AlgorithmEd25519,
+		PublicKey: privateKey.Public().(ed25519.PublicKey), ValidFrom: from.Add(-time.Hour),
+	})
+	verifier, _ := policy.NewVerifier(trustStore)
+	signature := policy.Signature{
+		SignerID: "policy-authority", KeyID: "test-key", Algorithm: policy.AlgorithmEd25519,
+		SignedAt: from,
+	}
+	payload, _ := policy.SigningPayload(version, signature)
+	signature.Value = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, payload))
+	verified, err := verifier.Verify(context.Background(), version, signature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = registry.Add(context.Background(), verified); err != nil {
 		t.Fatal(err)
 	}
 	return registry
