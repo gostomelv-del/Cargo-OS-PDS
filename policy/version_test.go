@@ -34,6 +34,20 @@ func verifiedForTest(t *testing.T, version *Version, signedAt time.Time) *Verifi
 	return verified
 }
 
+func activatedForTest(t *testing.T, version *Version, at time.Time) *ActivatedVersion {
+	t.Helper()
+	verified := verifiedForTest(t, version, at.Add(-time.Minute))
+	snapshot := version.Snapshot()
+	activated, err := Activate(verified, ApprovalRecord{
+		PolicyID: snapshot.PolicyID, Version: snapshot.Version, PolicyHash: snapshot.Hash,
+		ApprovedBy: "policy-review-board", ApprovedAt: at.Add(-time.Second),
+	}, at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return activated
+}
+
 func policyInput(version string, from time.Time, until *time.Time) Input {
 	return Input{
 		PolicyID: "cargo-transfer", Version: version, SchemaVersion: "policy.v1",
@@ -84,10 +98,10 @@ func TestRegistryResolvesHalfOpenEffectivePeriods(t *testing.T) {
 	first, _ := NewVersion(policyInput("1.0.0", base, &boundary))
 	second, _ := NewVersion(policyInput("2.0.0", boundary, nil))
 	registry := NewRegistry()
-	if err := registry.Add(context.Background(), verifiedForTest(t, first, base)); err != nil {
+	if err := registry.Add(context.Background(), activatedForTest(t, first, base)); err != nil {
 		t.Fatal(err)
 	}
-	if err := registry.Add(context.Background(), verifiedForTest(t, second, boundary)); err != nil {
+	if err := registry.Add(context.Background(), activatedForTest(t, second, boundary)); err != nil {
 		t.Fatal(err)
 	}
 	resolved, err := registry.Resolve(context.Background(), "cargo-transfer", boundary)
@@ -105,12 +119,12 @@ func TestRegistryRejectsOverlappingVersions(t *testing.T) {
 	first, _ := NewVersion(policyInput("1.0.0", base, &until))
 	second, _ := NewVersion(policyInput("2.0.0", base.Add(time.Hour), nil))
 	registry := NewRegistry()
-	verifiedFirst := verifiedForTest(t, first, base)
-	_ = registry.Add(context.Background(), verifiedFirst)
-	if err := registry.Add(context.Background(), verifiedForTest(t, second, base)); !errors.Is(err, ErrEffectiveOverlap) {
+	activatedFirst := activatedForTest(t, first, base)
+	_ = registry.Add(context.Background(), activatedFirst)
+	if err := registry.Add(context.Background(), activatedForTest(t, second, base)); !errors.Is(err, ErrEffectiveOverlap) {
 		t.Fatalf("expected overlap error, got %v", err)
 	}
-	if err := registry.Add(context.Background(), verifiedFirst); err != nil {
+	if err := registry.Add(context.Background(), activatedFirst); err != nil {
 		t.Fatalf("identical version was not idempotent: %v", err)
 	}
 }
