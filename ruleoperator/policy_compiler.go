@@ -18,11 +18,12 @@ import (
 const PolicyDocumentSchemaV1 = "policy.document.v1"
 
 var (
-	ErrUnsupportedPolicySchema = errors.New("ruleoperator: unsupported policy document schema")
-	ErrInvalidPolicyDocument   = errors.New("ruleoperator: invalid policy document")
-	ErrPolicyRuleNotFound      = errors.New("ruleoperator: policy rule not found")
-	ErrDuplicatePolicyRule     = errors.New("ruleoperator: duplicate policy rule")
-	ErrUnsupportedOperator     = errors.New("ruleoperator: unsupported operator")
+	ErrUnsupportedPolicySchema       = errors.New("ruleoperator: unsupported policy document schema")
+	ErrInvalidPolicyDocument         = errors.New("ruleoperator: invalid policy document")
+	ErrPolicyRuleNotFound            = errors.New("ruleoperator: policy rule not found")
+	ErrDuplicatePolicyRule           = errors.New("ruleoperator: duplicate policy rule")
+	ErrUnsupportedOperator           = errors.New("ruleoperator: unsupported operator")
+	ErrRuleOutsideQualificationScope = errors.New("ruleoperator: rule evidence is outside qualification scope")
 )
 
 // PolicyDocumentCompiler compiles the strict policy.document.v1 representation.
@@ -81,11 +82,23 @@ func (compiler PolicyDocumentCompiler) ValidatePolicyDocument(
 	if version == nil {
 		return ErrInvalidPolicyDocument
 	}
-	if _, err := compiler.CompileQualificationPolicy(ctx, version); err != nil {
+	qualificationPolicy, err := compiler.CompileQualificationPolicy(ctx, version)
+	if err != nil {
+		return err
+	}
+	document, err := decodePolicyDocument(version)
+	if err != nil {
 		return err
 	}
 	for _, ruleID := range version.Snapshot().RequiredRuleIDs {
 		if _, err := compiler.CompileRule(ctx, version, ruleID); err != nil {
+			return err
+		}
+		if err := validateRuleQualificationScope(
+			document.Rules,
+			ruleID,
+			qualificationPolicy,
+		); err != nil {
 			return err
 		}
 	}
@@ -266,6 +279,73 @@ func compilePolicyRule(rule policyRuleV1) (pds.RuleOperator, error) {
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedOperator, rule.Operator)
 	}
+}
+
+func validateRuleQualificationScope(
+	rules []policyRuleV1,
+	ruleID string,
+	qualification evidence.QualificationPolicy,
+) error {
+	for _, rule := range rules {
+		if strings.TrimSpace(rule.RuleID) != ruleID {
+			continue
+		}
+		switch strings.ToUpper(strings.TrimSpace(rule.Operator)) {
+		case "MATCH", "RANGE", "TOLERANCE":
+			if rule.Selector == nil {
+				return ErrInvalidPolicyDocument
+			}
+			return validateSelectorQualificationScope(*rule.Selector, qualification)
+		case "EXISTENCE":
+			if rule.EvidenceType == nil {
+				return ErrInvalidPolicyDocument
+			}
+			sourceID := ""
+			if rule.SourceID != nil {
+				sourceID = *rule.SourceID
+			}
+			return validateEvidenceQualificationScope(*rule.EvidenceType, sourceID, qualification)
+		case "SEQUENCE":
+			for _, step := range rule.Steps {
+				if err := validateSelectorQualificationScope(step.Selector, qualification); err != nil {
+					return err
+				}
+			}
+			return nil
+		default:
+			return fmt.Errorf("%w: %s", ErrUnsupportedOperator, rule.Operator)
+		}
+	}
+	return fmt.Errorf("%w: %s", ErrPolicyRuleNotFound, ruleID)
+}
+
+func validateSelectorQualificationScope(
+	selector selectorV1,
+	qualification evidence.QualificationPolicy,
+) error {
+	return validateEvidenceQualificationScope(
+		selector.EvidenceType,
+		selector.SourceID,
+		qualification,
+	)
+}
+
+func validateEvidenceQualificationScope(
+	evidenceType evidence.Type,
+	sourceID string,
+	qualification evidence.QualificationPolicy,
+) error {
+	evidenceType = evidence.Type(strings.TrimSpace(string(evidenceType)))
+	sourceID = strings.TrimSpace(sourceID)
+	if len(qualification.AllowedTypes) > 0 && !qualification.AllowedTypes[evidenceType] {
+		return fmt.Errorf("%w: evidence_type=%s", ErrRuleOutsideQualificationScope, evidenceType)
+	}
+	if sourceID != "" &&
+		len(qualification.TrustedSources) > 0 &&
+		!qualification.TrustedSources[sourceID] {
+		return fmt.Errorf("%w: source_id=%s", ErrRuleOutsideQualificationScope, sourceID)
+	}
+	return nil
 }
 
 func selector(value selectorV1) Selector {
