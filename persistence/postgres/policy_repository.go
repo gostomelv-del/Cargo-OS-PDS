@@ -227,6 +227,9 @@ func (s *Store) transitionPolicy(ctx context.Context, policyID, version string, 
 		 WHERE policy_id = $1 AND version = $2
 		 ORDER BY event_at DESC, event_id DESC LIMIT 1
 	`, policyID, version).Scan(&current, &currentAt)
+	if err == nil && current == target && currentAt.Equal(at.UTC()) {
+		return nil
+	}
 	valid := (current == policy.LifecycleActive && (target == policy.LifecycleSuspended || target == policy.LifecycleRetired)) ||
 		(current == policy.LifecycleSuspended && target == policy.LifecycleRetired)
 	if err != nil || !valid || at.UTC().Before(currentAt) {
