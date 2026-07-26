@@ -71,3 +71,14 @@ func TestPolicyDocumentCompilerFailsClosed(t *testing.T) {
 		})
 	}
 }
+
+func TestPolicyDocumentCompilerValidatesEveryRequiredRule(t *testing.T) {
+	version := policyVersion(t, PolicyDocumentSchemaV1, `{"rules":[
+		{"rule_id":"valid","operator":"EXISTENCE","evidence_type":"IMAGE","minimum_count":1},
+		{"rule_id":"invalid","operator":"MATCH","selector":{"evidence_type":"WEIGHT"}}
+	]}`, "valid", "invalid")
+	err := (PolicyDocumentCompiler{}).ValidatePolicyDocument(context.Background(), version)
+	if !errors.Is(err, ErrInvalidPolicyDocument) {
+		t.Fatalf("got %v, want %v", err, ErrInvalidPolicyDocument)
+	}
+}
