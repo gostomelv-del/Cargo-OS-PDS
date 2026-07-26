@@ -25,6 +25,8 @@ type Handler struct {
 	readiness       ReadinessChecker
 }
 
+const maxRequestBodyBytes int64 = 1 << 20
+
 type RuleExecutor interface {
 	Execute(context.Context, uuid.UUID) (evaluation.EvaluationSnapshot, error)
 }
@@ -111,6 +113,9 @@ type ingestEvidenceRequest struct {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+	}
 	if r.URL.Path == "/healthz" && r.Method == http.MethodGet {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
@@ -179,7 +184,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) executeRules(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
 	var request struct{}
 	if err := decodeOptionalJSON(r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json")
+		writeDecodeError(w, err)
 		return
 	}
 	if h.ruleExecutor == nil {
@@ -193,7 +198,7 @@ func (h *Handler) executeRules(w http.ResponseWriter, r *http.Request, id uuid.U
 func (h *Handler) ingestEvidence(w http.ResponseWriter, r *http.Request) {
 	var request ingestEvidenceRequest
 	if err := decodeJSON(r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json")
+		writeDecodeError(w, err)
 		return
 	}
 	sessionID, err := uuid.Parse(request.SessionID)
@@ -282,7 +287,7 @@ func isEvidenceInputError(err error) bool {
 func (h *Handler) createEvaluation(w http.ResponseWriter, r *http.Request) {
 	var request createEvaluationRequest
 	if err := decodeJSON(r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json")
+		writeDecodeError(w, err)
 		return
 	}
 	sessionID := uuid.New()
@@ -342,7 +347,7 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 }
 
 func decodeJSON(r *http.Request, target any) error {
-	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
+	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
 		return err
@@ -351,7 +356,7 @@ func decodeJSON(r *http.Request, target any) error {
 }
 
 func decodeOptionalJSON(r *http.Request, target any) error {
-	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
+	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	err := decoder.Decode(target)
 	if errors.Is(err, io.EOF) {
@@ -372,6 +377,15 @@ func requireJSONEnd(decoder *json.Decoder) error {
 		return errors.New("httpapi: request body must contain one JSON value")
 	}
 	return nil
+}
+
+func writeDecodeError(w http.ResponseWriter, err error) {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		writeError(w, http.StatusRequestEntityTooLarge, "request_body_too_large")
+		return
+	}
+	writeError(w, http.StatusBadRequest, "invalid_json")
 }
 
 func writeError(w http.ResponseWriter, status int, code string) {
