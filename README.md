@@ -124,6 +124,9 @@ client-supplied `required_rule_ids` are rejected.
 Rule Outcomes cannot be submitted through the public HTTP API. They are written
 only by the trusted Rule Execution application service after it resolves the
 bound qualified Evidence Set and executes every required operator atomically.
+`POST /v1/evaluations/{evaluation_id}/execute-rules` invokes that server-side
+service and accepts no caller-defined rules or outcomes. Missing Evidence,
+policy bindings, or registered operators fail closed without partial results.
 
 ## Verification
 
