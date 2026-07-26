@@ -131,6 +131,9 @@ Rule operators can be resolved through the exact bound `policy_id`, version,
 SHA-256 hash, and `rule_id`. A resolver that returns an operator with a
 different identity is rejected before any Evidence is evaluated or outcome is
 stored.
+Immutable policy versions can be retrieved by that complete identity even after
+suspension or retirement. Exact lookup requires the bound SHA-256 hash and does
+not expose a different document stored under the same policy ID and version.
 
 ## Verification
 
