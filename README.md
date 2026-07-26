@@ -118,6 +118,10 @@ The first Evidence API endpoints are:
 - `GET /v1/sessions/{session_id}/evidence` returns the session Evidence Set in
   deterministic observation-time and Evidence-ID order.
 
+`POST /v1/evaluations` accepts `policy_id` and an optional `session_id`. The
+server resolves the active immutable policy and derives its required-rule plan;
+client-supplied `required_rule_ids` are rejected.
+
 ## Verification
 
 Run from this directory:

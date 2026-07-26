@@ -17,7 +17,31 @@ import (
 	"cargoos/evaluation"
 	"cargoos/evidence"
 	"cargoos/pds"
+	"cargoos/policy"
 )
+
+type staticPolicyResolver struct {
+	version *policy.Version
+}
+
+func (r staticPolicyResolver) Resolve(_ context.Context, policyID string, at time.Time) (*policy.Version, error) {
+	if r.version == nil || r.version.Snapshot().PolicyID != policyID || !r.version.IsEffectiveAt(at) {
+		return nil, policy.ErrPolicyNotFound
+	}
+	return r.version, nil
+}
+
+func evaluationHandler(t *testing.T, service *pds.Service, from time.Time, rules []string) http.Handler {
+	t.Helper()
+	version, err := policy.NewVersion(policy.Input{
+		PolicyID: "cargo-transfer", Version: "1.0.0", SchemaVersion: "policy.v1",
+		EffectiveFrom: from, RequiredRuleIDs: rules, Document: json.RawMessage(`{"mode":"strict"}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return NewHandlerWithPolicyResolver(service, nil, staticPolicyResolver{version: version}, nil)
+}
 
 func TestEvaluationDecisionTraceFlow(t *testing.T) {
 	now := time.Date(2026, 7, 20, 14, 0, 0, 0, time.UTC)
@@ -25,10 +49,10 @@ func TestEvaluationDecisionTraceFlow(t *testing.T) {
 		now = now.Add(time.Second)
 		return now
 	})
-	handler := NewHandler(service)
+	handler := evaluationHandler(t, service, now.Add(-time.Hour), []string{"weight"})
 
 	created := perform(t, handler, http.MethodPost, "/v1/evaluations",
-		`{"required_rule_ids":["weight"]}`, http.StatusCreated)
+		`{"policy_id":"cargo-transfer"}`, http.StatusCreated)
 	var snapshot evaluation.EvaluationSnapshot
 	if err := json.Unmarshal(created.Body.Bytes(), &snapshot); err != nil {
 		t.Fatal(err)
@@ -53,17 +77,34 @@ func TestEvaluationDecisionTraceFlow(t *testing.T) {
 
 func TestCompletionRejectsMissingRequiredRule(t *testing.T) {
 	now := time.Now().UTC()
-	handler := NewHandler(pds.NewService(func() time.Time {
+	service := pds.NewService(func() time.Time {
 		now = now.Add(time.Second)
 		return now
-	}))
+	})
+	handler := evaluationHandler(t, service, now.Add(-time.Hour), []string{"weight"})
 	created := perform(t, handler, http.MethodPost, "/v1/evaluations",
-		`{"required_rule_ids":["weight"]}`, http.StatusCreated)
+		`{"policy_id":"cargo-transfer"}`, http.StatusCreated)
 	var snapshot evaluation.EvaluationSnapshot
 	_ = json.Unmarshal(created.Body.Bytes(), &snapshot)
 	id := snapshot.EvaluationID.String()
 	perform(t, handler, http.MethodPost, "/v1/evaluations/"+id+"/start", "", http.StatusOK)
 	perform(t, handler, http.MethodPost, "/v1/evaluations/"+id+"/complete", "", http.StatusConflict)
+}
+
+func TestEvaluationCreationRejectsClientSelectedRules(t *testing.T) {
+	now := time.Date(2026, 7, 26, 10, 0, 0, 0, time.UTC)
+	handler := evaluationHandler(t, pds.NewService(func() time.Time { return now }), now.Add(-time.Hour), []string{"policy-rule"})
+	perform(t, handler, http.MethodPost, "/v1/evaluations",
+		`{"policy_id":"cargo-transfer","required_rule_ids":["client-rule"]}`, http.StatusBadRequest)
+	created := perform(t, handler, http.MethodPost, "/v1/evaluations",
+		`{"policy_id":"cargo-transfer"}`, http.StatusCreated)
+	var snapshot evaluation.EvaluationSnapshot
+	if err := json.Unmarshal(created.Body.Bytes(), &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.RequiredRuleIDs) != 1 || snapshot.RequiredRuleIDs[0] != "policy-rule" || snapshot.PolicyBinding == nil {
+		t.Fatalf("evaluation was not derived from policy: %#v", snapshot)
+	}
 }
 
 func TestHealth(t *testing.T) {

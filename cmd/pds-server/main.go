@@ -18,6 +18,7 @@ import (
 	"cargoos/evidence"
 	"cargoos/pds"
 	postgresstore "cargoos/persistence/postgres"
+	"cargoos/policy"
 )
 
 func main() {
@@ -34,7 +35,7 @@ func run() error {
 	if runtimeVersion == "" {
 		runtimeVersion = "cargoos-pds.dev"
 	}
-	service, evidenceService, readiness, closeStore, err := newService(
+	service, evidenceService, policyResolver, readiness, closeStore, err := newService(
 		ctx, os.Getenv("PDS_DATABASE_URL"), runtimeVersion,
 	)
 	if err != nil {
@@ -48,7 +49,7 @@ func run() error {
 	}
 	server := &http.Server{
 		Addr:              address,
-		Handler:           httpapi.NewHandlerWithEvidence(service, evidenceService, readiness),
+		Handler:           httpapi.NewHandlerWithPolicyResolver(service, evidenceService, policyResolver, readiness),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -86,19 +87,19 @@ func newService(
 	ctx context.Context,
 	databaseURL string,
 	runtimeVersion string,
-) (*pds.Service, *evidence.Service, httpapi.ReadinessChecker, func(), error) {
+) (*pds.Service, *evidence.Service, pds.PolicyResolver, httpapi.ReadinessChecker, func(), error) {
 	if databaseURL == "" {
 		log.Print("PDS_DATABASE_URL is not set; using non-durable in-memory storage")
 		evidenceService, err := evidence.NewService(evidence.NewMemoryRepository(), evidence.ServiceConfig{
 			SchemaVersion: "evidence.v1", RuntimeVersion: runtimeVersion,
 		})
-		return pds.NewService(nil), evidenceService,
+		return pds.NewService(nil), evidenceService, policy.NewRegistry(),
 			httpapi.ReadinessFunc(func(context.Context) error { return nil }), func() {}, err
 	}
 
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
-		return nil, nil, nil, func() {}, err
+		return nil, nil, nil, nil, func() {}, err
 	}
 	closeDatabase := func() { _ = db.Close() }
 
@@ -106,22 +107,22 @@ func newService(
 	defer cancel()
 	if err = db.PingContext(pingCtx); err != nil {
 		closeDatabase()
-		return nil, nil, nil, func() {}, err
+		return nil, nil, nil, nil, func() {}, err
 	}
 	store, err := postgresstore.NewStore(db)
 	if err != nil {
 		closeDatabase()
-		return nil, nil, nil, func() {}, err
+		return nil, nil, nil, nil, func() {}, err
 	}
 	evidenceService, err := evidence.NewService(store, evidence.ServiceConfig{
 		SchemaVersion: "evidence.v1", RuntimeVersion: runtimeVersion,
 	})
 	if err != nil {
 		closeDatabase()
-		return nil, nil, nil, func() {}, err
+		return nil, nil, nil, nil, func() {}, err
 	}
 	log.Print("using durable PostgreSQL storage")
-	return pds.NewServiceWithStore(store, nil), evidenceService, postgresReadiness(db), closeDatabase, nil
+	return pds.NewServiceWithStore(store, nil), evidenceService, store, postgresReadiness(db), closeDatabase, nil
 }
 
 func postgresReadiness(db *sql.DB) httpapi.ReadinessChecker {
