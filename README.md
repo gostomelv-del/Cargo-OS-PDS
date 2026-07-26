@@ -48,6 +48,9 @@ The same document contains a mandatory, versioned `evidence_qualification`
 section that compiles trusted sources, allowed Evidence types and acquisition
 methods, age and clock tolerances, confidence limits, provenance, and required
 payload fields into a server-controlled Qualification Policy.
+The Policy Evidence Qualification service loads that configuration only
+through the Evaluation's exact bound policy identity, qualifies the complete
+session Evidence Set, and atomically binds the result before Rule Execution.
 The server wires this compiler through the exact immutable Policy Version
 reader in both in-memory and PostgreSQL modes; Rule Execution no longer relies
 on a separately registered static operator set.

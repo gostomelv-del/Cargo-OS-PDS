@@ -332,4 +332,5 @@ func decodeStrict(payload []byte, target any) error {
 }
 
 var _ pds.PolicyRuleCompiler = PolicyDocumentCompiler{}
+var _ pds.PolicyQualificationCompiler = PolicyDocumentCompiler{}
 var _ policy.DocumentValidator = PolicyDocumentCompiler{}
