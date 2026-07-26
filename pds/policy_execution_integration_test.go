@@ -42,19 +42,6 @@ func TestSignedPolicyExecutesBoundRuleEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	qualifier, err := evidence.NewQualifier(evidence.QualificationPolicy{
-		Version:        "qualification.v1",
-		TrustedSources: map[string]bool{"scale-17": true},
-		AllowedTypes:   map[evidence.Type]bool{evidence.TypeWeight: true},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	qualified, err := evidenceService.QualifySession(ctx, sessionID, qualifier)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	store := pds.NewMemoryStore()
 	evaluationService := pds.NewServiceWithStore(store, func() time.Time { return now })
 	created, err := evaluationService.CreateForPolicy(ctx, sessionID, "cargo-transfer", registry)
@@ -64,7 +51,16 @@ func TestSignedPolicyExecutesBoundRuleEndToEnd(t *testing.T) {
 	if _, err = evaluationService.Start(ctx, created.EvaluationID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = evaluationService.BindEvidenceQualification(ctx, created.EvaluationID, qualified); err != nil {
+	qualificationService, err := pds.NewPolicyEvidenceQualificationService(
+		evaluationService,
+		evidenceService,
+		registry,
+		ruleoperator.PolicyDocumentCompiler{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = qualificationService.QualifyAndBind(ctx, created.EvaluationID); err != nil {
 		t.Fatal(err)
 	}
 	resolver, err := pds.NewPolicyDocumentRuleResolver(
