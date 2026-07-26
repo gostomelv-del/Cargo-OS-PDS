@@ -134,6 +134,9 @@ stored.
 Immutable policy versions can be retrieved by that complete identity even after
 suspension or retirement. Exact lookup requires the bound SHA-256 hash and does
 not expose a different document stored under the same policy ID and version.
+The Policy Document Rule Resolver uses this exact lookup before invoking a rule
+compiler. A failed ID, version, or hash lookup never reaches compilation, and a
+compiler cannot substitute an operator with a different rule identity.
 
 ## Verification
 
