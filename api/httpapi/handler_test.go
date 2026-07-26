@@ -207,6 +207,23 @@ func TestCommandsRejectTrailingJSONValues(t *testing.T) {
 	}
 }
 
+func TestCommandsRejectOversizedBodies(t *testing.T) {
+	now := time.Date(2026, 7, 26, 12, 30, 0, 0, time.UTC)
+	handler := evaluationHandler(
+		t,
+		pds.NewService(func() time.Time { return now }),
+		now.Add(-time.Hour),
+		[]string{"weight"},
+	)
+	body := `{"policy_id":"cargo-transfer"}` +
+		strings.Repeat(" ", int(maxRequestBodyBytes))
+	response := perform(t, handler, http.MethodPost, "/v1/evaluations",
+		body, http.StatusRequestEntityTooLarge)
+	if response.Body.String() != "{\"error\":\"request_body_too_large\"}\n" {
+		t.Fatalf("unexpected oversized-body response: %s", response.Body.String())
+	}
+}
+
 func TestHealth(t *testing.T) {
 	perform(t, NewHandler(pds.NewService(nil)), http.MethodGet, "/healthz", "", http.StatusOK)
 }

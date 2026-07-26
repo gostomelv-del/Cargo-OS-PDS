@@ -136,9 +136,10 @@ client-supplied `required_rule_ids` are rejected.
 Rule Outcomes cannot be submitted through the public HTTP API. They are written
 only by the trusted Rule Execution application service after it resolves the
 bound qualified Evidence Set and executes every required operator atomically.
-Every command endpoint accepts exactly one size-limited JSON value; unknown
-fields and trailing JSON values are rejected before an application service is
-invoked.
+Every command endpoint accepts exactly one JSON value with a hard 1 MiB request
+limit. Unknown fields and trailing JSON values are rejected before an
+application service is invoked; oversized bodies return
+`413 request_body_too_large`.
 HTTP errors use stable public codes. Unknown storage or runtime failures return
 `500 internal_error`; internal error text is never copied into a response.
 `POST /v1/evaluations/{evaluation_id}/execute-rules` invokes that server-side
