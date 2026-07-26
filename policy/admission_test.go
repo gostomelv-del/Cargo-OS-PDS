@@ -15,6 +15,16 @@ type recordingActivatedRegistry struct {
 	err       error
 }
 
+type recordingDocumentValidator struct {
+	calls int
+	err   error
+}
+
+func (v *recordingDocumentValidator) ValidatePolicyDocument(_ context.Context, _ *Version) error {
+	v.calls++
+	return v.err
+}
+
 func (r *recordingActivatedRegistry) Add(_ context.Context, activated *ActivatedVersion) error {
 	r.calls++
 	r.activated = activated
@@ -60,7 +70,8 @@ func admissionFixture(t *testing.T) (*Version, Signature, ApprovalRecord, *Verif
 func TestAdmissionServiceVerifiesApprovesAndPersistsOnce(t *testing.T) {
 	version, signature, approval, verifier, at := admissionFixture(t)
 	registry := &recordingActivatedRegistry{}
-	service, err := NewAdmissionService(verifier, registry)
+	validator := &recordingDocumentValidator{}
+	service, err := NewAdmissionService(verifier, validator, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,6 +82,9 @@ func TestAdmissionServiceVerifiesApprovesAndPersistsOnce(t *testing.T) {
 	if registry.calls != 1 || registry.activated != activated {
 		t.Fatalf("expected one exact activated-version write, got calls=%d value=%p", registry.calls, registry.activated)
 	}
+	if validator.calls != 1 {
+		t.Fatalf("expected one document validation, got %d", validator.calls)
+	}
 	if activated.VerifiedVersion().Version().Snapshot().Hash != version.Snapshot().Hash {
 		t.Fatal("admission changed immutable policy identity")
 	}
@@ -79,7 +93,7 @@ func TestAdmissionServiceVerifiesApprovesAndPersistsOnce(t *testing.T) {
 func TestAdmissionServiceDoesNotPersistFailedVerificationOrApproval(t *testing.T) {
 	version, signature, approval, verifier, at := admissionFixture(t)
 	registry := &recordingActivatedRegistry{}
-	service, _ := NewAdmissionService(verifier, registry)
+	service, _ := NewAdmissionService(verifier, &recordingDocumentValidator{}, registry)
 
 	invalidSignature := signature
 	invalidSignature.Value = "invalid"
@@ -103,7 +117,7 @@ func TestAdmissionServiceDoesNotPersistFailedVerificationOrApproval(t *testing.T
 func TestAdmissionServiceRejectsInvalidOrderingAndRegistryFailure(t *testing.T) {
 	version, signature, approval, verifier, at := admissionFixture(t)
 	registry := &recordingActivatedRegistry{err: ErrEffectiveOverlap}
-	service, _ := NewAdmissionService(verifier, registry)
+	service, _ := NewAdmissionService(verifier, &recordingDocumentValidator{}, registry)
 
 	if _, err := service.Admit(context.Background(), version, signature, approval, at.Add(time.Second), at); !errors.Is(err, ErrVerificationAfterActivation) {
 		t.Fatalf("expected ordering rejection, got %v", err)
@@ -120,13 +134,36 @@ func TestAdmissionServiceRejectsInvalidOrderingAndRegistryFailure(t *testing.T) 
 	}
 }
 
+func TestAdmissionServiceDoesNotActivateInvalidDocument(t *testing.T) {
+	version, signature, approval, verifier, at := admissionFixture(t)
+	registry := &recordingActivatedRegistry{}
+	validator := &recordingDocumentValidator{err: ErrInvalidDocument}
+	service, err := NewAdmissionService(verifier, validator, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Admit(context.Background(), version, signature, approval, at, at); !errors.Is(err, ErrInvalidDocument) {
+		t.Fatalf("expected document rejection, got %v", err)
+	}
+	if validator.calls != 1 {
+		t.Fatalf("expected one document validation, got %d", validator.calls)
+	}
+	if registry.calls != 0 {
+		t.Fatal("invalid policy document reached registry")
+	}
+}
+
 func TestAdmissionServiceRequiresDependencies(t *testing.T) {
 	registry := &recordingActivatedRegistry{}
-	if _, err := NewAdmissionService(nil, registry); !errors.Is(err, ErrTrustStoreRequired) {
+	validator := &recordingDocumentValidator{}
+	if _, err := NewAdmissionService(nil, validator, registry); !errors.Is(err, ErrTrustStoreRequired) {
 		t.Fatalf("expected verifier requirement, got %v", err)
 	}
 	_, _, _, verifier, _ := admissionFixture(t)
-	if _, err := NewAdmissionService(verifier, nil); !errors.Is(err, ErrPolicyRegistryRequired) {
+	if _, err := NewAdmissionService(verifier, nil, registry); !errors.Is(err, ErrDocumentValidatorRequired) {
+		t.Fatalf("expected document validator requirement, got %v", err)
+	}
+	if _, err := NewAdmissionService(verifier, validator, nil); !errors.Is(err, ErrPolicyRegistryRequired) {
 		t.Fatalf("expected registry requirement, got %v", err)
 	}
 }
