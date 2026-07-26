@@ -121,6 +121,9 @@ The first Evidence API endpoints are:
 `POST /v1/evaluations` accepts `policy_id` and an optional `session_id`. The
 server resolves the active immutable policy and derives its required-rule plan;
 client-supplied `required_rule_ids` are rejected.
+Rule Outcomes cannot be submitted through the public HTTP API. They are written
+only by the trusted Rule Execution application service after it resolves the
+bound qualified Evidence Set and executes every required operator atomically.
 
 ## Verification
 
