@@ -21,7 +21,12 @@ type Handler struct {
 	service         *pds.Service
 	evidenceService *evidence.Service
 	policyResolver  pds.PolicyResolver
+	ruleExecutor    RuleExecutor
 	readiness       ReadinessChecker
+}
+
+type RuleExecutor interface {
+	Execute(context.Context, uuid.UUID) (evaluation.EvaluationSnapshot, error)
 }
 
 func NewHandler(service *pds.Service) http.Handler {
@@ -56,6 +61,16 @@ func NewHandlerWithPolicyResolver(
 	policyResolver pds.PolicyResolver,
 	readiness ReadinessChecker,
 ) http.Handler {
+	return NewHandlerWithRuntime(service, evidenceService, policyResolver, nil, readiness)
+}
+
+func NewHandlerWithRuntime(
+	service *pds.Service,
+	evidenceService *evidence.Service,
+	policyResolver pds.PolicyResolver,
+	ruleExecutor RuleExecutor,
+	readiness ReadinessChecker,
+) http.Handler {
 	if readiness == nil {
 		readiness = ReadinessFunc(func(context.Context) error { return nil })
 	}
@@ -64,7 +79,7 @@ func NewHandlerWithPolicyResolver(
 	}
 	return &Handler{
 		service: service, evidenceService: evidenceService,
-		policyResolver: policyResolver, readiness: readiness,
+		policyResolver: policyResolver, ruleExecutor: ruleExecutor, readiness: readiness,
 	}
 }
 
@@ -148,6 +163,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case parts[1] == "start" && r.Method == http.MethodPost:
 		snapshot, serviceErr := h.service.Start(r.Context(), id)
 		h.writeServiceResult(w, snapshot, serviceErr)
+	case parts[1] == "execute-rules" && r.Method == http.MethodPost:
+		h.executeRules(w, r, id)
 	case parts[1] == "complete" && r.Method == http.MethodPost:
 		trace, serviceErr := h.service.Complete(r.Context(), id)
 		h.writeServiceResult(w, trace, serviceErr)
@@ -157,6 +174,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, http.StatusNotFound, "not_found")
 	}
+}
+
+func (h *Handler) executeRules(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
+	var request struct{}
+	if err := decodeOptionalJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if h.ruleExecutor == nil {
+		writeError(w, http.StatusServiceUnavailable, "rule_executor_unavailable")
+		return
+	}
+	snapshot, err := h.ruleExecutor.Execute(r.Context(), id)
+	h.writeServiceResult(w, snapshot, err)
 }
 
 func (h *Handler) ingestEvidence(w http.ResponseWriter, r *http.Request) {
@@ -289,6 +320,16 @@ func decodeJSON(r *http.Request, target any) error {
 	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
 	decoder.DisallowUnknownFields()
 	return decoder.Decode(target)
+}
+
+func decodeOptionalJSON(r *http.Request, target any) error {
+	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	err := decoder.Decode(target)
+	if errors.Is(err, io.EOF) {
+		return nil
+	}
+	return err
 }
 
 func writeError(w http.ResponseWriter, status int, code string) {

@@ -24,6 +24,17 @@ type staticPolicyResolver struct {
 	version *policy.Version
 }
 
+type recordingRuleExecutor struct {
+	calledWith uuid.UUID
+	snapshot   evaluation.EvaluationSnapshot
+	err        error
+}
+
+func (e *recordingRuleExecutor) Execute(_ context.Context, id uuid.UUID) (evaluation.EvaluationSnapshot, error) {
+	e.calledWith = id
+	return e.snapshot, e.err
+}
+
 func (r staticPolicyResolver) Resolve(_ context.Context, policyID string, at time.Time) (*policy.Version, error) {
 	if r.version == nil || r.version.Snapshot().PolicyID != policyID || !r.version.IsEffectiveAt(at) {
 		return nil, policy.ErrPolicyNotFound
@@ -105,6 +116,38 @@ func TestManualOutcomeInjectionDoesNotChangeEvaluation(t *testing.T) {
 	if len(decision.RuleOutcomes) != 0 || len(decision.MissingRuleIDs) != 1 || decision.MissingRuleIDs[0] != "weight" {
 		t.Fatalf("manual outcome injection changed the evaluation: %#v", decision)
 	}
+}
+
+func TestRuleExecutionEndpointDelegatesWithoutCallerOutcomes(t *testing.T) {
+	evaluationID := uuid.New()
+	executor := &recordingRuleExecutor{snapshot: evaluation.EvaluationSnapshot{EvaluationID: evaluationID}}
+	handler := NewHandlerWithRuntime(pds.NewService(nil), nil, nil, executor, nil)
+	perform(t, handler, http.MethodPost,
+		"/v1/evaluations/"+evaluationID.String()+"/execute-rules",
+		`{"rule_id":"injected","status":"PASS"}`,
+		http.StatusBadRequest,
+	)
+	if executor.calledWith != uuid.Nil {
+		t.Fatalf("caller-defined outcome reached executor: %s", executor.calledWith)
+	}
+	response := perform(t, handler, http.MethodPost,
+		"/v1/evaluations/"+evaluationID.String()+"/execute-rules", "", http.StatusOK)
+	if executor.calledWith != evaluationID {
+		t.Fatalf("executor received %s, want %s", executor.calledWith, evaluationID)
+	}
+	var snapshot evaluation.EvaluationSnapshot
+	if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.EvaluationID != evaluationID {
+		t.Fatalf("unexpected execution response: %#v", snapshot)
+	}
+}
+
+func TestRuleExecutionEndpointFailsClosedWithoutExecutor(t *testing.T) {
+	id := uuid.New().String()
+	perform(t, NewHandler(pds.NewService(nil)), http.MethodPost,
+		"/v1/evaluations/"+id+"/execute-rules", "", http.StatusServiceUnavailable)
 }
 
 func TestCompletionRejectsMissingRequiredRule(t *testing.T) {
