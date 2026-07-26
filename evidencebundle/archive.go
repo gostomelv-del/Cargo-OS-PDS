@@ -20,13 +20,13 @@ var (
 )
 
 const (
-	ArchiveExtension  = ".coseb"
-	ArchiveMediaType  = "application/vnd.cargoos.evidence-bundle+zip"
-	ManifestEntryPath = "manifest.json"
+	ArchiveExtension   = ".coseb"
+	ArchiveMediaType   = "application/vnd.cargoos.evidence-bundle+zip"
+	ManifestEntryPath  = "manifest.json"
 	SignatureEntryPath = "signature.json"
-	ObjectEntryPrefix = "objects/"
-	MaxArchiveSize    = 64 << 20
-	MaxArchiveEntries = 4096
+	ObjectEntryPrefix  = "objects/"
+	MaxArchiveSize     = 64 << 20
+	MaxArchiveEntries  = 4096
 )
 
 var archiveTimestamp = time.Date(1980, time.January, 1, 0, 0, 0, 0, time.UTC)
