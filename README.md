@@ -57,6 +57,11 @@ suspended, and retired states are recorded as append-only lifecycle events;
 only the currently active version can be resolved for a new Evaluation, while
 the immutable policy and historical lifecycle records remain available for
 audit and replay.
+The durable Trust Store keeps public verification keys and revocations as
+immutable PostgreSQL records. Key identifiers support rotation without
+overwriting historical material, and verification uses an explicit admission
+time so a revoked or expired key cannot authorize a new policy admission while
+previously admitted records remain reproducible.
 
 ## Requirements
 

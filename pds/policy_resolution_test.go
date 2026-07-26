@@ -36,7 +36,7 @@ func resolutionRegistry(t *testing.T, from time.Time, rules []string) *policy.Re
 	}
 	payload, _ := policy.SigningPayload(version, signature)
 	signature.Value = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, payload))
-	verified, err := verifier.Verify(context.Background(), version, signature)
+	verified, err := verifier.Verify(context.Background(), version, signature, from)
 	if err != nil {
 		t.Fatal(err)
 	}
