@@ -36,7 +36,7 @@ func run() error {
 	if runtimeVersion == "" {
 		runtimeVersion = "cargoos-pds.dev"
 	}
-	service, evidenceService, policyResolver, ruleExecutor, readiness, closeStore, err := newService(
+	service, evidenceService, policyResolver, evidenceQualifier, ruleExecutor, readiness, closeStore, err := newService(
 		ctx, os.Getenv("PDS_DATABASE_URL"), runtimeVersion,
 	)
 	if err != nil {
@@ -49,8 +49,10 @@ func run() error {
 		address = ":8080"
 	}
 	server := &http.Server{
-		Addr:              address,
-		Handler:           httpapi.NewHandlerWithRuntime(service, evidenceService, policyResolver, ruleExecutor, readiness),
+		Addr: address,
+		Handler: httpapi.NewHandlerWithQualificationRuntime(
+			service, evidenceService, policyResolver, evidenceQualifier, ruleExecutor, readiness,
+		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -88,7 +90,7 @@ func newService(
 	ctx context.Context,
 	databaseURL string,
 	runtimeVersion string,
-) (*pds.Service, *evidence.Service, pds.PolicyResolver, *pds.RuleExecutionService, httpapi.ReadinessChecker, func(), error) {
+) (*pds.Service, *evidence.Service, pds.PolicyResolver, *pds.PolicyEvidenceQualificationService, *pds.RuleExecutionService, httpapi.ReadinessChecker, func(), error) {
 	if databaseURL == "" {
 		log.Print("PDS_DATABASE_URL is not set; using non-durable in-memory storage")
 		evaluationService := pds.NewService(nil)
@@ -97,16 +99,23 @@ func newService(
 			SchemaVersion: "evidence.v1", RuntimeVersion: runtimeVersion,
 		})
 		if err != nil {
-			return nil, nil, nil, nil, nil, func() {}, err
+			return nil, nil, nil, nil, nil, nil, func() {}, err
+		}
+		evidenceQualifier, err := pds.NewPolicyEvidenceQualificationService(
+			evaluationService, evidenceService, policyRegistry,
+			ruleoperator.PolicyDocumentCompiler{},
+		)
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, func() {}, err
 		}
 		ruleExecutor, err := newRuleExecutionService(evaluationService, evidenceService, policyRegistry)
-		return evaluationService, evidenceService, policyRegistry, ruleExecutor,
+		return evaluationService, evidenceService, policyRegistry, evidenceQualifier, ruleExecutor,
 			httpapi.ReadinessFunc(func(context.Context) error { return nil }), func() {}, err
 	}
 
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
-		return nil, nil, nil, nil, nil, func() {}, err
+		return nil, nil, nil, nil, nil, nil, func() {}, err
 	}
 	closeDatabase := func() { _ = db.Close() }
 
@@ -114,28 +123,37 @@ func newService(
 	defer cancel()
 	if err = db.PingContext(pingCtx); err != nil {
 		closeDatabase()
-		return nil, nil, nil, nil, nil, func() {}, err
+		return nil, nil, nil, nil, nil, nil, func() {}, err
 	}
 	store, err := postgresstore.NewStore(db)
 	if err != nil {
 		closeDatabase()
-		return nil, nil, nil, nil, nil, func() {}, err
+		return nil, nil, nil, nil, nil, nil, func() {}, err
 	}
 	evidenceService, err := evidence.NewService(store, evidence.ServiceConfig{
 		SchemaVersion: "evidence.v1", RuntimeVersion: runtimeVersion,
 	})
 	if err != nil {
 		closeDatabase()
-		return nil, nil, nil, nil, nil, func() {}, err
+		return nil, nil, nil, nil, nil, nil, func() {}, err
 	}
 	evaluationService := pds.NewServiceWithStore(store, nil)
+	evidenceQualifier, err := pds.NewPolicyEvidenceQualificationService(
+		evaluationService, evidenceService, store,
+		ruleoperator.PolicyDocumentCompiler{},
+	)
+	if err != nil {
+		closeDatabase()
+		return nil, nil, nil, nil, nil, nil, func() {}, err
+	}
 	ruleExecutor, err := newRuleExecutionService(evaluationService, evidenceService, store)
 	if err != nil {
 		closeDatabase()
-		return nil, nil, nil, nil, nil, func() {}, err
+		return nil, nil, nil, nil, nil, nil, func() {}, err
 	}
 	log.Print("using durable PostgreSQL storage")
-	return evaluationService, evidenceService, store, ruleExecutor, postgresReadiness(db), closeDatabase, nil
+	return evaluationService, evidenceService, store, evidenceQualifier, ruleExecutor,
+		postgresReadiness(db), closeDatabase, nil
 }
 
 func newRuleExecutionService(
