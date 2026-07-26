@@ -18,17 +18,22 @@ import (
 )
 
 type Handler struct {
-	service         *pds.Service
-	evidenceService *evidence.Service
-	policyResolver  pds.PolicyResolver
-	ruleExecutor    RuleExecutor
-	readiness       ReadinessChecker
+	service           *pds.Service
+	evidenceService   *evidence.Service
+	policyResolver    pds.PolicyResolver
+	evidenceQualifier EvidenceQualifier
+	ruleExecutor      RuleExecutor
+	readiness         ReadinessChecker
 }
 
 const maxRequestBodyBytes int64 = 1 << 20
 
 type RuleExecutor interface {
 	Execute(context.Context, uuid.UUID) (evaluation.EvaluationSnapshot, error)
+}
+
+type EvidenceQualifier interface {
+	QualifyAndBind(context.Context, uuid.UUID) (evaluation.EvaluationSnapshot, error)
 }
 
 func NewHandler(service *pds.Service) http.Handler {
@@ -73,6 +78,19 @@ func NewHandlerWithRuntime(
 	ruleExecutor RuleExecutor,
 	readiness ReadinessChecker,
 ) http.Handler {
+	return NewHandlerWithQualificationRuntime(
+		service, evidenceService, policyResolver, nil, ruleExecutor, readiness,
+	)
+}
+
+func NewHandlerWithQualificationRuntime(
+	service *pds.Service,
+	evidenceService *evidence.Service,
+	policyResolver pds.PolicyResolver,
+	evidenceQualifier EvidenceQualifier,
+	ruleExecutor RuleExecutor,
+	readiness ReadinessChecker,
+) http.Handler {
 	if readiness == nil {
 		readiness = ReadinessFunc(func(context.Context) error { return nil })
 	}
@@ -81,7 +99,8 @@ func NewHandlerWithRuntime(
 	}
 	return &Handler{
 		service: service, evidenceService: evidenceService,
-		policyResolver: policyResolver, ruleExecutor: ruleExecutor, readiness: readiness,
+		policyResolver: policyResolver, evidenceQualifier: evidenceQualifier,
+		ruleExecutor: ruleExecutor, readiness: readiness,
 	}
 }
 
@@ -168,6 +187,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case parts[1] == "start" && r.Method == http.MethodPost:
 		snapshot, serviceErr := h.service.Start(r.Context(), id)
 		h.writeServiceResult(w, snapshot, serviceErr)
+	case parts[1] == "qualify-evidence" && r.Method == http.MethodPost:
+		h.qualifyEvidence(w, r, id)
 	case parts[1] == "execute-rules" && r.Method == http.MethodPost:
 		h.executeRules(w, r, id)
 	case parts[1] == "complete" && r.Method == http.MethodPost:
@@ -179,6 +200,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, http.StatusNotFound, "not_found")
 	}
+}
+
+func (h *Handler) qualifyEvidence(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
+	var request struct{}
+	if err := decodeOptionalJSON(r, &request); err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	if h.evidenceQualifier == nil {
+		writeError(w, http.StatusServiceUnavailable, "evidence_qualifier_unavailable")
+		return
+	}
+	snapshot, err := h.evidenceQualifier.QualifyAndBind(r.Context(), id)
+	h.writeServiceResult(w, snapshot, err)
 }
 
 func (h *Handler) executeRules(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
