@@ -44,6 +44,10 @@ Policy documents declaring schema `policy.document.v1` can define all five
 operators in a strict `rules` array. Unknown fields, unsupported operators,
 duplicate rule IDs, and fields that do not apply to the selected operator are
 rejected instead of being ignored.
+The same document contains a mandatory, versioned `evidence_qualification`
+section that compiles trusted sources, allowed Evidence types and acquisition
+methods, age and clock tolerances, confidence limits, provenance, and required
+payload fields into a server-controlled Qualification Policy.
 The server wires this compiler through the exact immutable Policy Version
 reader in both in-memory and PostgreSQL modes; Rule Execution no longer relies
 on a separately registered static operator set.
