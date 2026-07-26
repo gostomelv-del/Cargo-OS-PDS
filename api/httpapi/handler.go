@@ -83,12 +83,6 @@ type createEvaluationRequest struct {
 	PolicyID  string `json:"policy_id"`
 }
 
-type recordOutcomeRequest struct {
-	RuleID      string   `json:"rule_id"`
-	Status      string   `json:"status"`
-	ReasonCodes []string `json:"reason_codes"`
-}
-
 type ingestEvidenceRequest struct {
 	EvidenceID   string            `json:"evidence_id"`
 	SessionID    string            `json:"session_id"`
@@ -154,8 +148,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case parts[1] == "start" && r.Method == http.MethodPost:
 		snapshot, serviceErr := h.service.Start(r.Context(), id)
 		h.writeServiceResult(w, snapshot, serviceErr)
-	case parts[1] == "outcomes" && r.Method == http.MethodPost:
-		h.recordOutcome(w, r, id)
 	case parts[1] == "complete" && r.Method == http.MethodPost:
 		trace, serviceErr := h.service.Complete(r.Context(), id)
 		h.writeServiceResult(w, trace, serviceErr)
@@ -264,27 +256,6 @@ func (h *Handler) createEvaluation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, snapshot)
-}
-
-func (h *Handler) recordOutcome(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
-	var request recordOutcomeRequest
-	if err := decodeJSON(r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json")
-		return
-	}
-	reasons := make([]evaluation.ReasonCode, 0, len(request.ReasonCodes))
-	for _, value := range request.ReasonCodes {
-		reason, err := evaluation.NewReasonCode(value)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_reason_code")
-			return
-		}
-		reasons = append(reasons, reason)
-	}
-	snapshot, err := h.service.RecordOutcome(r.Context(), id, evaluation.RuleOutcome{
-		RuleID: request.RuleID, Status: evaluation.RuleOutcomeStatus(request.Status), ReasonCodes: reasons,
-	})
-	h.writeServiceResult(w, snapshot, err)
 }
 
 func (h *Handler) writeServiceResult(w http.ResponseWriter, value any, err error) {
