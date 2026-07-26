@@ -6,7 +6,7 @@ import (
 )
 
 func TestNewServiceUsesMemoryStoreWithoutDatabaseURL(t *testing.T) {
-	service, evidenceService, readiness, closeStore, err := newService(
+	service, evidenceService, policyResolver, readiness, closeStore, err := newService(
 		context.Background(), "", "cargoos-pds.test",
 	)
 	if err != nil {
@@ -19,13 +19,16 @@ func TestNewServiceUsesMemoryStoreWithoutDatabaseURL(t *testing.T) {
 	if evidenceService == nil {
 		t.Fatal("newService returned a nil Evidence service")
 	}
+	if policyResolver == nil {
+		t.Fatal("newService returned a nil policy resolver")
+	}
 	if readiness == nil || readiness.Check(context.Background()) != nil {
 		t.Fatal("in-memory service should be ready")
 	}
 }
 
 func TestNewServiceRejectsUnavailablePostgres(t *testing.T) {
-	service, evidenceService, readiness, closeStore, err := newService(
+	service, evidenceService, policyResolver, readiness, closeStore, err := newService(
 		context.Background(),
 		"postgres://cargoos:cargoos@127.0.0.1:1/cargoos?sslmode=disable&connect_timeout=1",
 		"cargoos-pds.test",
@@ -39,6 +42,9 @@ func TestNewServiceRejectsUnavailablePostgres(t *testing.T) {
 	}
 	if evidenceService != nil {
 		t.Fatal("newService returned Evidence service after connection failure")
+	}
+	if policyResolver != nil {
+		t.Fatal("newService returned policy resolver after connection failure")
 	}
 	if readiness != nil {
 		t.Fatal("newService returned readiness after connection failure")
