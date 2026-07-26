@@ -20,12 +20,13 @@ var (
 )
 
 const (
-	ArchiveExtension  = ".coseb"
-	ArchiveMediaType  = "application/vnd.cargoos.evidence-bundle+zip"
-	ManifestEntryPath = "manifest.json"
-	ObjectEntryPrefix = "objects/"
-	MaxArchiveSize    = 64 << 20
-	MaxArchiveEntries = 4096
+	ArchiveExtension   = ".coseb"
+	ArchiveMediaType   = "application/vnd.cargoos.evidence-bundle+zip"
+	ManifestEntryPath  = "manifest.json"
+	SignatureEntryPath = "signature.json"
+	ObjectEntryPrefix  = "objects/"
+	MaxArchiveSize     = 64 << 20
+	MaxArchiveEntries  = 4096
 )
 
 var archiveTimestamp = time.Date(1980, time.January, 1, 0, 0, 0, 0, time.UTC)
@@ -33,6 +34,14 @@ var archiveTimestamp = time.Date(1980, time.January, 1, 0, 0, 0, 0, time.UTC)
 // ExportArchive produces the portable, deterministic ZIP representation of a
 // verified Evidence Bundle. Identical bundles produce byte-identical archives.
 func ExportArchive(bundle Bundle) ([]byte, error) {
+	entries, err := bundleArchiveEntries(bundle)
+	if err != nil {
+		return nil, err
+	}
+	return writeArchive(entries)
+}
+
+func bundleArchiveEntries(bundle Bundle) ([]archiveEntry, error) {
 	if err := Verify(bundle); err != nil {
 		return nil, err
 	}
@@ -53,8 +62,15 @@ func ExportArchive(bundle Bundle) ([]byte, error) {
 		}
 		entries = append(entries, archiveEntry{path: entryPath, payload: bytes.Clone(object.Payload)})
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].path < entries[j].path })
+	return entries, nil
+}
 
+func writeArchive(entries []archiveEntry) ([]byte, error) {
+	if len(entries) == 0 || len(entries) > MaxArchiveEntries {
+		return nil, ErrArchiveTooLarge
+	}
+	entries = append([]archiveEntry(nil), entries...)
+	sort.Slice(entries, func(i, j int) bool { return entries[i].path < entries[j].path })
 	var output bytes.Buffer
 	writer := zip.NewWriter(&output)
 	for _, entry := range entries {
@@ -73,7 +89,7 @@ func ExportArchive(bundle Bundle) ([]byte, error) {
 			return nil, writeErr
 		}
 	}
-	if err = writer.Close(); err != nil {
+	if err := writer.Close(); err != nil {
 		return nil, err
 	}
 	if output.Len() > MaxArchiveSize {
@@ -85,47 +101,59 @@ func ExportArchive(bundle Bundle) ([]byte, error) {
 // ImportArchive reads a portable .coseb archive without consulting production
 // storage and verifies its manifest, Bundle Root, object list, sizes and hashes.
 func ImportArchive(payload []byte) (Bundle, error) {
+	entries, err := readArchive(payload)
+	if err != nil {
+		return Bundle{}, err
+	}
+	return bundleFromArchiveEntries(entries)
+}
+
+func readArchive(payload []byte) (map[string][]byte, error) {
 	if len(payload) == 0 {
-		return Bundle{}, ErrArchiveInvalid
+		return nil, ErrArchiveInvalid
 	}
 	if len(payload) > MaxArchiveSize {
-		return Bundle{}, ErrArchiveTooLarge
+		return nil, ErrArchiveTooLarge
 	}
 	reader, err := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
 	if err != nil {
-		return Bundle{}, fmt.Errorf("%w: %v", ErrArchiveInvalid, err)
+		return nil, fmt.Errorf("%w: %v", ErrArchiveInvalid, err)
 	}
 	if len(reader.File) == 0 || len(reader.File) > MaxArchiveEntries {
-		return Bundle{}, ErrArchiveInvalid
+		return nil, ErrArchiveInvalid
 	}
 
 	entries := make(map[string][]byte, len(reader.File))
 	var total int64
 	for _, file := range reader.File {
 		if !validArchivePath(file.Name) || file.FileInfo().IsDir() || file.Method != zip.Store {
-			return Bundle{}, fmt.Errorf("%w: %s", ErrArchiveInvalid, file.Name)
+			return nil, fmt.Errorf("%w: %s", ErrArchiveInvalid, file.Name)
 		}
 		if _, duplicate := entries[file.Name]; duplicate {
-			return Bundle{}, fmt.Errorf("%w: duplicate %s", ErrArchiveInvalid, file.Name)
+			return nil, fmt.Errorf("%w: duplicate %s", ErrArchiveInvalid, file.Name)
 		}
 		if file.UncompressedSize64 > MaxArchiveSize || total+int64(file.UncompressedSize64) > MaxArchiveSize {
-			return Bundle{}, ErrArchiveTooLarge
+			return nil, ErrArchiveTooLarge
 		}
 		entry, readErr := readArchiveEntry(file)
 		if readErr != nil {
-			return Bundle{}, readErr
+			return nil, readErr
 		}
 		total += int64(len(entry))
 		entries[file.Name] = entry
 	}
+	return entries, nil
+}
 
+func bundleFromArchiveEntries(entries map[string][]byte) (Bundle, error) {
+	entries = copyArchiveEntries(entries)
 	manifestPayload, exists := entries[ManifestEntryPath]
 	if !exists {
 		return Bundle{}, fmt.Errorf("%w: missing %s", ErrArchiveInvalid, ManifestEntryPath)
 	}
 	delete(entries, ManifestEntryPath)
 	var manifest Manifest
-	if err = json.Unmarshal(manifestPayload, &manifest); err != nil {
+	if err := json.Unmarshal(manifestPayload, &manifest); err != nil {
 		return Bundle{}, fmt.Errorf("%w: manifest: %v", ErrArchiveInvalid, err)
 	}
 	canonical, err := CanonicalManifest(manifest)
@@ -161,6 +189,14 @@ func ImportArchive(payload []byte) (Bundle, error) {
 		return Bundle{}, err
 	}
 	return bundle, nil
+}
+
+func copyArchiveEntries(source map[string][]byte) map[string][]byte {
+	result := make(map[string][]byte, len(source))
+	for entryPath, payload := range source {
+		result[entryPath] = bytes.Clone(payload)
+	}
+	return result
 }
 
 type archiveEntry struct {
