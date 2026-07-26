@@ -166,6 +166,37 @@ func (s *Store) Resolve(ctx context.Context, policyID string, at time.Time) (*po
 	}
 }
 
+// FindVersion retrieves an immutable, signature-verified policy using the
+// complete identity stored in an Evaluation binding. Lifecycle state is not
+// consulted because historical execution and replay must survive suspension or
+// retirement.
+func (s *Store) FindVersion(
+	ctx context.Context,
+	policyID string,
+	version string,
+	hash string,
+) (*policy.Version, error) {
+	if s == nil || s.db == nil {
+		return nil, ErrDatabaseRequired
+	}
+	var payload []byte
+	err := s.db.QueryRowContext(ctx, `
+		SELECT snapshot
+		  FROM policy_versions
+		 WHERE policy_id = $1
+		   AND version = $2
+		   AND policy_hash = $3
+		   AND signature_value IS NOT NULL
+	`, policyID, version, hash).Scan(&payload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, policy.ErrPolicyNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("postgres: find exact policy version: %w", err)
+	}
+	return decodePolicySnapshot(payload)
+}
+
 func (s *Store) Suspend(ctx context.Context, policyID, version string, at time.Time) error {
 	return s.transitionPolicy(ctx, policyID, version, policy.LifecycleSuspended, at)
 }
@@ -243,3 +274,4 @@ func isExclusionViolation(err error) bool {
 }
 
 var _ pds.PolicyResolver = (*Store)(nil)
+var _ policy.VersionReader = (*Store)(nil)
