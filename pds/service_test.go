@@ -25,8 +25,18 @@ func TestServicePersistsLifecycleAndOutbox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.Start(ctx, created.EvaluationID); err != nil {
+	started, err := service.Start(ctx, created.EvaluationID)
+	if err != nil {
 		t.Fatal(err)
+	}
+	retriedStart, err := service.Start(ctx, created.EvaluationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started.StartedAt == nil || retriedStart.StartedAt == nil ||
+		!started.StartedAt.Equal(*retriedStart.StartedAt) {
+		t.Fatalf("start retry changed timestamp: first=%v retry=%v",
+			started.StartedAt, retriedStart.StartedAt)
 	}
 	if _, err = service.RecordOutcome(ctx, created.EvaluationID, evaluation.RuleOutcome{
 		RuleID: "weight", Status: evaluation.RuleOutcomePass,
@@ -39,6 +49,15 @@ func TestServicePersistsLifecycleAndOutbox(t *testing.T) {
 	}
 	if trace.Result != evaluation.ResultVerified {
 		t.Fatalf("unexpected result: %s", trace.Result)
+	}
+	retriedTrace, err := service.Complete(ctx, created.EvaluationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trace.CompletedAt == nil || retriedTrace.CompletedAt == nil ||
+		!trace.CompletedAt.Equal(*retriedTrace.CompletedAt) ||
+		trace.Version != retriedTrace.Version {
+		t.Fatalf("completion retry changed trace: first=%#v retry=%#v", trace, retriedTrace)
 	}
 	events := store.OutboxRecords()
 	if len(events) != 5 {
