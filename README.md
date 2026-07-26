@@ -67,6 +67,10 @@ verifies the policy signature at an explicit time, checks the exact prior
 Approval Record, activates the immutable version, and only then attempts one
 registry write. Failed verification or approval cannot leave a partial policy
 record.
+Policy-bound Evaluation creation resolves the active immutable policy at the
+creation timestamp, derives the ordered required-rule plan only from that
+policy, binds its exact identity and hash, and persists the aggregate and outbox
+events once. No unbound or client-defined intermediate Evaluation is stored.
 
 ## Requirements
 
