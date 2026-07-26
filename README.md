@@ -59,6 +59,9 @@ domain-separated policy hash has been verified against a trusted, time-valid,
 non-revoked signing key. The initial cryptographic profile supports `ED25519`;
 admission also validates every required rule in the immutable Policy Document
 before approval can create an active version.
+The in-memory integration suite exercises the complete signed-policy path from
+admission and exact Policy Binding through Evidence qualification, Rule
+Execution, Decision Trace completion, and transactional outbox persistence.
 algorithm identifiers and trust-store interfaces preserve algorithm agility,
 while private signing keys remain outside the PDS.
 Policy publication requires an exact Approval Record before activation. Active,
