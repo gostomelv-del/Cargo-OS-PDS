@@ -62,6 +62,11 @@ immutable PostgreSQL records. Key identifiers support rotation without
 overwriting historical material, and verification uses an explicit admission
 time so a revoked or expired key cannot authorize a new policy admission while
 previously admitted records remain reproducible.
+The Policy Admission Service is the single fail-closed path into a registry: it
+verifies the policy signature at an explicit time, checks the exact prior
+Approval Record, activates the immutable version, and only then attempts one
+registry write. Failed verification or approval cannot leave a partial policy
+record.
 
 ## Requirements
 
