@@ -162,6 +162,22 @@ accepted. Lifecycle records remain append-only, and exact historical Policy
 Versions stay available for deterministic Evaluation replay. Retrying the exact
 same transition and event time is idempotent; conflicting retries fail closed.
 
+Public Ed25519 verification keys are administered through another bounded
+operator command:
+
+```sh
+go run ./cmd/pds-trust-key register-key.json
+go run ./cmd/pds-trust-key revoke-key.json
+```
+
+The command requires `PDS_DATABASE_URL` and accepts one strict JSON object from
+a file or standard input. A `register` request contains `signer_id`, `key_id`,
+`algorithm`, a base64 `public_key`, `valid_from`, and optional `valid_until`. A
+`revoke` request contains only the key identity and `revoked_at`. Input is
+limited to 1 MiB; unknown, mixed-action, unsupported-algorithm, malformed-key,
+and trailing fields fail closed. Registration and revocation are append-only
+and idempotent for exact retries. Private keys never enter PDS.
+
 `PDS_HTTP_ADDRESS` optionally changes the listen address from the default
 `:8080`. The process verifies the database connection at startup and shuts down
 gracefully on `SIGINT` or `SIGTERM`.
