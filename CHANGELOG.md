@@ -9,6 +9,9 @@ here.
 
 - Release-readiness audit and explicit reference-MVP security boundary.
 - Non-mutating formatting verification and build checks for every command.
+- Server-controlled CREATED and RUNNING Evaluation timeout policy with
+  idempotent expiration, a stable `EVALUATION_TIMEOUT` reason, Decision Trace
+  coverage, and restart recovery tests.
 
 ## [0.1.0-alpha] - 2026-07-26
 

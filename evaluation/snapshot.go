@@ -171,6 +171,7 @@ type DecisionTrace struct {
 	CreatedAt       time.Time
 	StartedAt       *time.Time
 	CompletedAt     *time.Time
+	ExpiredAt       *time.Time
 	EvidenceBinding *EvidenceSetBinding
 	PolicyBinding   *PolicyBinding
 }
@@ -192,6 +193,7 @@ func (e *EvaluationAggregate) DecisionTrace() (DecisionTrace, error) {
 		CreatedAt:       e.createdAt,
 		StartedAt:       copyTimePointer(e.startedAt),
 		CompletedAt:     copyTimePointer(e.completedAt),
+		ExpiredAt:       copyTimePointer(e.expiredAt),
 		EvidenceBinding: copyEvidenceBinding(e.evidenceBinding),
 		PolicyBinding:   copyPolicyBinding(e.policyBinding),
 	}, nil

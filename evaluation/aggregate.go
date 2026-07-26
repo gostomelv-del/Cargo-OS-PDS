@@ -52,6 +52,7 @@ type EvaluationCancelledEvent struct {
 }
 type EvaluationExpiredEvent struct {
 	EvaluationID, SessionID uuid.UUID
+	ReasonCodes             []ReasonCode
 	ExpiredAt               time.Time
 	Version                 uint64
 }
@@ -177,14 +178,25 @@ func (e *EvaluationAggregate) Expire(at time.Time) error {
 	if e == nil || e.state.IsTerminal() {
 		return ErrInvalidStateTransition
 	}
+	if at.IsZero() {
+		return ErrInvalidExpirationTime
+	}
 	at = at.UTC()
 	if at.Before(e.createdAt) {
 		return ErrInvalidExpirationTime
 	}
 	e.state = StateExpired
+	e.result = ResultSystemException
+	e.reasonCodes = []ReasonCode{ReasonCodeEvaluationTimeout}
 	e.expiredAt = &at
 	e.version++
-	e.addDomainEvent(EvaluationExpiredEvent{e.id, e.sessionID, at, e.version})
+	e.addDomainEvent(EvaluationExpiredEvent{
+		EvaluationID: e.id,
+		SessionID:    e.sessionID,
+		ReasonCodes:  copyReasonCodes(e.reasonCodes),
+		ExpiredAt:    at,
+		Version:      e.version,
+	})
 	return nil
 }
 func (e *EvaluationAggregate) addDomainEvent(v DomainEvent) {
