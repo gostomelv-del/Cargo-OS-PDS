@@ -57,6 +57,8 @@ periods, and triggers prevent policy versions from being updated or deleted.
 Policy admission is fail-closed: registries accept only versions whose
 domain-separated policy hash has been verified against a trusted, time-valid,
 non-revoked signing key. The initial cryptographic profile supports `ED25519`;
+admission also validates every required rule in the immutable Policy Document
+before approval can create an active version.
 algorithm identifiers and trust-store interfaces preserve algorithm agility,
 while private signing keys remain outside the PDS.
 Policy publication requires an exact Approval Record before activation. Active,
