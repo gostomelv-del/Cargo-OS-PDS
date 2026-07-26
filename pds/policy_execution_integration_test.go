@@ -126,7 +126,14 @@ func admitRangePolicy(
 		SchemaVersion:   ruleoperator.PolicyDocumentSchemaV1,
 		EffectiveFrom:   at.Add(-time.Hour),
 		RequiredRuleIDs: []string{"weight-range"},
-		Document: json.RawMessage(`{"rules":[{
+		Document: json.RawMessage(`{
+		"evidence_qualification":{
+			"version":"qualification.v1",
+			"trusted_sources":["scale-17"],
+			"allowed_types":["WEIGHT"],
+			"allowed_acquisition_methods":["HTTP"]
+		},
+		"rules":[{
 			"rule_id":"weight-range",
 			"operator":"RANGE",
 			"selector":{"evidence_type":"WEIGHT","source_id":"scale-17","json_pointer":"/value"},

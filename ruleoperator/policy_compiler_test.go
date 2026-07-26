@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"cargoos/evidence"
 	"cargoos/policy"
 )
 
@@ -73,12 +74,63 @@ func TestPolicyDocumentCompilerFailsClosed(t *testing.T) {
 }
 
 func TestPolicyDocumentCompilerValidatesEveryRequiredRule(t *testing.T) {
-	version := policyVersion(t, PolicyDocumentSchemaV1, `{"rules":[
+	version := policyVersion(t, PolicyDocumentSchemaV1, `{
+	"evidence_qualification":{"version":"qualification.v1"},
+	"rules":[
 		{"rule_id":"valid","operator":"EXISTENCE","evidence_type":"IMAGE","minimum_count":1},
 		{"rule_id":"invalid","operator":"MATCH","selector":{"evidence_type":"WEIGHT"}}
 	]}`, "valid", "invalid")
 	err := (PolicyDocumentCompiler{}).ValidatePolicyDocument(context.Background(), version)
 	if !errors.Is(err, ErrInvalidPolicyDocument) {
 		t.Fatalf("got %v, want %v", err, ErrInvalidPolicyDocument)
+	}
+}
+
+func TestPolicyDocumentCompilerCompilesEvidenceQualification(t *testing.T) {
+	version := policyVersion(t, PolicyDocumentSchemaV1, `{
+		"evidence_qualification":{
+			"version":"qualification.v1",
+			"trusted_sources":["scale-17"],
+			"allowed_types":["WEIGHT"],
+			"allowed_acquisition_methods":["HTTP"],
+			"max_age":"5m",
+			"future_tolerance":"2s",
+			"require_confidence":true,
+			"minimum_confidence":0.8,
+			"required_provenance":["device_id"],
+			"required_payload_fields":["value"]
+		},
+		"rules":[{"rule_id":"weight","operator":"EXISTENCE","evidence_type":"WEIGHT","minimum_count":1}]
+	}`, "weight")
+	compiled, err := (PolicyDocumentCompiler{}).CompileQualificationPolicy(context.Background(), version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if compiled.Version != "qualification.v1" ||
+		!compiled.TrustedSources["scale-17"] ||
+		!compiled.AllowedTypes[evidence.TypeWeight] ||
+		!compiled.AllowedAcquisitionMethods["HTTP"] ||
+		compiled.MaxAge != 5*time.Minute ||
+		compiled.FutureTolerance != 2*time.Second ||
+		!compiled.RequireConfidence ||
+		compiled.MinimumConfidence == nil ||
+		*compiled.MinimumConfidence != 0.8 {
+		t.Fatalf("unexpected qualification policy: %#v", compiled)
+	}
+}
+
+func TestPolicyDocumentCompilerRejectsInvalidEvidenceQualification(t *testing.T) {
+	tests := []string{
+		`{"rules":[{"rule_id":"weight","operator":"EXISTENCE","evidence_type":"WEIGHT","minimum_count":1}]}`,
+		`{"evidence_qualification":{"version":"","max_age":"5m"},"rules":[{"rule_id":"weight","operator":"EXISTENCE","evidence_type":"WEIGHT","minimum_count":1}]}`,
+		`{"evidence_qualification":{"version":"qualification.v1","max_age":"later"},"rules":[{"rule_id":"weight","operator":"EXISTENCE","evidence_type":"WEIGHT","minimum_count":1}]}`,
+		`{"evidence_qualification":{"version":"qualification.v1","trusted_sources":["scale","scale"]},"rules":[{"rule_id":"weight","operator":"EXISTENCE","evidence_type":"WEIGHT","minimum_count":1}]}`,
+		`{"evidence_qualification":{"version":"qualification.v1","minimum_confidence":2},"rules":[{"rule_id":"weight","operator":"EXISTENCE","evidence_type":"WEIGHT","minimum_count":1}]}`,
+	}
+	for _, document := range tests {
+		version := policyVersion(t, PolicyDocumentSchemaV1, document, "weight")
+		if _, err := (PolicyDocumentCompiler{}).CompileQualificationPolicy(context.Background(), version); !errors.Is(err, ErrInvalidPolicyDocument) {
+			t.Fatalf("got %v, want %v for %s", err, ErrInvalidPolicyDocument, document)
+		}
 	}
 }
