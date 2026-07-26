@@ -146,6 +146,22 @@ Admission Service performs signature, document, approval, and effective-scope
 validation before the PostgreSQL registry is changed. Private signing keys
 remain outside PDS.
 
+Active policy versions can be removed from new Evaluation resolution through a
+separate operator command:
+
+```sh
+go run ./cmd/pds-policy-lifecycle suspend cargo-transfer 1.0.0 2026-07-26T10:30:00Z
+go run ./cmd/pds-policy-lifecycle retire cargo-transfer 1.0.0 2026-07-27T10:30:00Z
+```
+
+The command requires `PDS_DATABASE_URL` and an explicit RFC3339 event time.
+`suspend` temporarily removes an active version from resolution; `retire`
+permanently ends its lifecycle. Only the domain-defined transitions
+`ACTIVE → SUSPENDED`, `ACTIVE → RETIRED`, and `SUSPENDED → RETIRED` are
+accepted. Lifecycle records remain append-only, and exact historical Policy
+Versions stay available for deterministic Evaluation replay. Retrying the exact
+same transition and event time is idempotent; conflicting retries fail closed.
+
 `PDS_HTTP_ADDRESS` optionally changes the listen address from the default
 `:8080`. The process verifies the database connection at startup and shuts down
 gracefully on `SIGINT` or `SIGTERM`.
