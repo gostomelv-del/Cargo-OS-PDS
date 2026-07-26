@@ -89,7 +89,7 @@ func writeArchive(entries []archiveEntry) ([]byte, error) {
 			return nil, writeErr
 		}
 	}
-	if err = writer.Close(); err != nil {
+	if err := writer.Close(); err != nil {
 		return nil, err
 	}
 	if output.Len() > MaxArchiveSize {
@@ -153,7 +153,7 @@ func bundleFromArchiveEntries(entries map[string][]byte) (Bundle, error) {
 	}
 	delete(entries, ManifestEntryPath)
 	var manifest Manifest
-	if err = json.Unmarshal(manifestPayload, &manifest); err != nil {
+	if err := json.Unmarshal(manifestPayload, &manifest); err != nil {
 		return Bundle{}, fmt.Errorf("%w: manifest: %v", ErrArchiveInvalid, err)
 	}
 	canonical, err := CanonicalManifest(manifest)
