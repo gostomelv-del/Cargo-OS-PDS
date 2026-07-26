@@ -82,11 +82,24 @@ func (s *Service) Start(ctx context.Context, id uuid.UUID) (evaluation.Evaluatio
 	if err != nil {
 		return evaluation.EvaluationSnapshot{}, err
 	}
+	current, err := aggregate.Snapshot()
+	if err != nil {
+		return evaluation.EvaluationSnapshot{}, err
+	}
+	if current.State == evaluation.StateRunning {
+		return current, nil
+	}
 	expectedVersion := aggregate.Version()
 	if err = aggregate.Start(s.now().UTC()); err != nil {
 		return evaluation.EvaluationSnapshot{}, err
 	}
 	if err = s.save(ctx, aggregate, expectedVersion); err != nil {
+		if errors.Is(err, ErrConcurrentModification) {
+			latest, findErr := s.Snapshot(ctx, id)
+			if findErr == nil && latest.State == evaluation.StateRunning {
+				return latest, nil
+			}
+		}
 		return evaluation.EvaluationSnapshot{}, err
 	}
 	return aggregate.Snapshot()
@@ -182,6 +195,13 @@ func (s *Service) Complete(ctx context.Context, id uuid.UUID) (evaluation.Decisi
 	if err != nil {
 		return evaluation.DecisionTrace{}, err
 	}
+	current, err := aggregate.Snapshot()
+	if err != nil {
+		return evaluation.DecisionTrace{}, err
+	}
+	if current.State == evaluation.StateCompleted {
+		return aggregate.DecisionTrace()
+	}
 	expectedVersion := aggregate.Version()
 	result, reasons, err := aggregate.DeriveResult()
 	if err != nil {
@@ -191,6 +211,15 @@ func (s *Service) Complete(ctx context.Context, id uuid.UUID) (evaluation.Decisi
 		return evaluation.DecisionTrace{}, err
 	}
 	if err = s.save(ctx, aggregate, expectedVersion); err != nil {
+		if errors.Is(err, ErrConcurrentModification) {
+			latest, findErr := s.find(ctx, id)
+			if findErr == nil {
+				snapshot, snapshotErr := latest.Snapshot()
+				if snapshotErr == nil && snapshot.State == evaluation.StateCompleted {
+					return latest.DecisionTrace()
+				}
+			}
+		}
 		return evaluation.DecisionTrace{}, err
 	}
 	return aggregate.DecisionTrace()
