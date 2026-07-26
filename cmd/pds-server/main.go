@@ -19,6 +19,7 @@ import (
 	"cargoos/pds"
 	postgresstore "cargoos/persistence/postgres"
 	"cargoos/policy"
+	"cargoos/ruleoperator"
 )
 
 func main() {
@@ -91,14 +92,15 @@ func newService(
 	if databaseURL == "" {
 		log.Print("PDS_DATABASE_URL is not set; using non-durable in-memory storage")
 		evaluationService := pds.NewService(nil)
+		policyRegistry := policy.NewRegistry()
 		evidenceService, err := evidence.NewService(evidence.NewMemoryRepository(), evidence.ServiceConfig{
 			SchemaVersion: "evidence.v1", RuntimeVersion: runtimeVersion,
 		})
 		if err != nil {
 			return nil, nil, nil, nil, nil, func() {}, err
 		}
-		ruleExecutor, err := pds.NewRuleExecutionService(evaluationService, evidenceService, nil)
-		return evaluationService, evidenceService, policy.NewRegistry(), ruleExecutor,
+		ruleExecutor, err := newRuleExecutionService(evaluationService, evidenceService, policyRegistry)
+		return evaluationService, evidenceService, policyRegistry, ruleExecutor,
 			httpapi.ReadinessFunc(func(context.Context) error { return nil }), func() {}, err
 	}
 
@@ -127,13 +129,28 @@ func newService(
 		return nil, nil, nil, nil, nil, func() {}, err
 	}
 	evaluationService := pds.NewServiceWithStore(store, nil)
-	ruleExecutor, err := pds.NewRuleExecutionService(evaluationService, evidenceService, nil)
+	ruleExecutor, err := newRuleExecutionService(evaluationService, evidenceService, store)
 	if err != nil {
 		closeDatabase()
 		return nil, nil, nil, nil, nil, func() {}, err
 	}
 	log.Print("using durable PostgreSQL storage")
 	return evaluationService, evidenceService, store, ruleExecutor, postgresReadiness(db), closeDatabase, nil
+}
+
+func newRuleExecutionService(
+	evaluations *pds.Service,
+	evidenceReader pds.EvidenceReader,
+	versionReader policy.VersionReader,
+) (*pds.RuleExecutionService, error) {
+	resolver, err := pds.NewPolicyDocumentRuleResolver(
+		versionReader,
+		ruleoperator.PolicyDocumentCompiler{},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return pds.NewRuleExecutionServiceWithResolver(evaluations, evidenceReader, resolver)
 }
 
 func postgresReadiness(db *sql.DB) httpapi.ReadinessChecker {
