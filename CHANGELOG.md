@@ -12,6 +12,9 @@ here.
 - Server-controlled CREATED and RUNNING Evaluation timeout policy with
   idempotent expiration, a stable `EVALUATION_TIMEOUT` reason, Decision Trace
   coverage, and restart recovery tests.
+- PostgreSQL failure-recovery coverage proving that an outbox write failure
+  rolls back the aggregate snapshot and that an exact retry persists one
+  consistent state and event.
 
 ## [0.1.0-alpha] - 2026-07-26
 
