@@ -130,6 +130,22 @@ of every applied migration, and fails if an already applied migration was
 modified. Existing installations can continue to apply individual SQL files
 with `psql`, but managed deployments should use `pds-migrate`.
 
+Signed policies are admitted through a separate operator command, not through
+the public HTTP API:
+
+```sh
+go run ./cmd/pds-policy-admit signed-policy.json
+```
+
+The command requires `PDS_DATABASE_URL` and accepts either one JSON file or
+standard input. Its request contains the immutable Policy Snapshot (including
+its canonical hash), Ed25519 Signature, exact Approval Record, and explicit
+verification and activation timestamps. Input is limited to 1 MiB, unknown
+fields and trailing JSON are rejected, and the existing fail-closed Policy
+Admission Service performs signature, document, approval, and effective-scope
+validation before the PostgreSQL registry is changed. Private signing keys
+remain outside PDS.
+
 `PDS_HTTP_ADDRESS` optionally changes the listen address from the default
 `:8080`. The process verifies the database connection at startup and shuts down
 gracefully on `SIGINT` or `SIGTERM`.
