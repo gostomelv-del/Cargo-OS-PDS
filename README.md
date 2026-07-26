@@ -51,6 +51,9 @@ payload fields into a server-controlled Qualification Policy.
 The Policy Evidence Qualification service loads that configuration only
 through the Evaluation's exact bound policy identity, qualifies the complete
 session Evidence Set, and atomically binds the result before Rule Execution.
+Qualification commands are idempotent: once an Evidence Binding exists,
+retries return that immutable binding without recalculating timestamps or
+re-reading mutable session state.
 The HTTP integration suite verifies the entire public lifecycle from Evidence
 ingestion and Policy-derived Evaluation creation through qualification, Rule
 Execution, completion, and retrieval of the final Decision Trace.
