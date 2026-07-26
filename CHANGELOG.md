@@ -15,6 +15,9 @@ here.
 - PostgreSQL failure-recovery coverage proving that an outbox write failure
   rolls back the aggregate snapshot and that an exact retry persists one
   consistent state and event.
+- Initial Evidence Bundle foundation with a deterministic manifest, exact
+  Policy and Evidence references, per-object SHA-256 digests, a Bundle Root,
+  and modification detection.
 
 ## [0.1.0-alpha] - 2026-07-26
 

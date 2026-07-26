@@ -79,6 +79,13 @@ Execution, completion, and retrieval of the final Decision Trace.
 The server wires this compiler through the exact immutable Policy Version
 reader in both in-memory and PostgreSQL modes; Rule Execution no longer relies
 on a separately registered static operator set.
+The initial Evidence Bundle foundation can package a finalized Decision Trace,
+its exact Policy reference, and every bound Evidence Object into a
+deterministically ordered manifest. Each object receives a SHA-256 digest and
+the manifest receives a reproducible Bundle Root; verification detects
+modification of either the manifest or any included object. Archive export,
+bundle signatures, independent verification tools, and human-readable reports
+remain outside this initial package.
 The in-memory Policy Registry stores immutable canonical policy versions,
 rejects overlapping effective periods, and resolves exactly one version at the
 Evaluation creation time. Resolution binds the resulting policy identity and
