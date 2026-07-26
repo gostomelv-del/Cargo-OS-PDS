@@ -276,6 +276,7 @@ func TestEvidenceValidationAndNotFound(t *testing.T) {
 }
 
 func TestServiceErrorMapping(t *testing.T) {
+	secret := errors.New("database password=do-not-expose")
 	tests := []struct {
 		name   string
 		err    error
@@ -284,6 +285,8 @@ func TestServiceErrorMapping(t *testing.T) {
 	}{
 		{name: "not found", err: pds.ErrEvaluationNotFound, status: http.StatusNotFound, body: "evaluation_not_found"},
 		{name: "concurrent modification", err: pds.ErrConcurrentModification, status: http.StatusConflict, body: "concurrent_modification"},
+		{name: "missing evidence binding", err: pds.ErrEvidenceBindingMissing, status: http.StatusConflict, body: "evidence_binding_missing"},
+		{name: "unknown internal failure", err: secret, status: http.StatusInternalServerError, body: "internal_error"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -295,7 +298,21 @@ func TestServiceErrorMapping(t *testing.T) {
 			if !strings.Contains(recorder.Body.String(), test.body) {
 				t.Fatalf("expected body to contain %q, got %q", test.body, recorder.Body.String())
 			}
+			if strings.Contains(recorder.Body.String(), "do-not-expose") {
+				t.Fatalf("internal error leaked to client: %s", recorder.Body.String())
+			}
 		})
+	}
+}
+
+func TestEvidenceErrorMappingDoesNotExposeInternalFailure(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	new(Handler).writeEvidenceError(recorder, errors.New("postgres host=secret.internal"))
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, recorder.Code)
+	}
+	if recorder.Body.String() != "{\"error\":\"internal_error\"}\n" {
+		t.Fatalf("unexpected public error: %s", recorder.Body.String())
 	}
 }
 
