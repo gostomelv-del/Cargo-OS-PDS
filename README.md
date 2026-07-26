@@ -51,6 +51,9 @@ payload fields into a server-controlled Qualification Policy.
 The Policy Evidence Qualification service loads that configuration only
 through the Evaluation's exact bound policy identity, qualifies the complete
 session Evidence Set, and atomically binds the result before Rule Execution.
+The HTTP integration suite verifies the entire public lifecycle from Evidence
+ingestion and Policy-derived Evaluation creation through qualification, Rule
+Execution, completion, and retrieval of the final Decision Trace.
 The server wires this compiler through the exact immutable Policy Version
 reader in both in-memory and PostgreSQL modes; Rule Execution no longer relies
 on a separately registered static operator set.
