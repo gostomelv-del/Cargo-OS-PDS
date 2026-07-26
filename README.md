@@ -1,7 +1,14 @@
-# CargoCore Go — Stage 6
+# Cargo OS PDS — Reference MVP
 
-This directory contains the reconstructed Stage 6 Go module extracted from
-`CargoCore_Go_Stage6_Full_Code_ENGLISH.txt`.
+Status: **v0.1.0-alpha release candidate**.
+
+This repository is the verified Go reference MVP for the Cargo OS Policy
+Decision Service. It demonstrates deterministic, policy-bound Evidence
+qualification and Evaluation with immutable Decision Traces. It is not a
+production deployment profile.
+
+The implementation began as a reconstruction of the Stage 6 CargoCore source
+and has since been extended into the audited reference MVP described below.
 
 The module now includes the immutable canonical Evidence Object foundation:
 source identity, session binding, canonical JSON payloads, provenance,
@@ -107,6 +114,25 @@ events once. No unbound or client-defined intermediate Evaluation is stored.
 
 - Go 1.22 or later
 - PostgreSQL 16 when durable runtime storage is enabled
+
+## Release scope
+
+The release candidate includes:
+
+- immutable Evidence Objects and deterministic Evidence qualification;
+- signed, versioned Policy admission and lifecycle controls;
+- five strict Rule Operators compiled from the bound Policy Document;
+- atomic Evaluation persistence, history, and transactional outbox records;
+- PostgreSQL migrations, readiness checks, and operator CLIs;
+- a complete HTTP integration test from Evidence ingestion to Decision Trace;
+- formatting, command build, unit, vet, race, and PostgreSQL integration checks.
+
+The public HTTP API does not yet implement authentication, authorization,
+tenant isolation, rate limiting, TLS termination, or production telemetry.
+Until a deployment profile supplies those controls, bind the server only to a
+trusted development or integration network. See
+[`docs/MVP_RELEASE_READINESS.md`](docs/MVP_RELEASE_READINESS.md) for the audited
+boundary and remaining production work.
 
 ## Run the HTTP API
 
@@ -232,7 +258,8 @@ compiler cannot substitute an operator with a different rule identity.
 Run from this directory:
 
 ```sh
-gofmt -w evaluation third_party/google_uuid
+make check-format
+go build ./cmd/...
 go test ./...
 go vet ./...
 go test -race ./...
