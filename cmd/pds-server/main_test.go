@@ -10,7 +10,7 @@ import (
 )
 
 func TestNewServiceUsesMemoryStoreWithoutDatabaseURL(t *testing.T) {
-	service, evidenceService, policyResolver, ruleExecutor, readiness, closeStore, err := newService(
+	service, evidenceService, policyResolver, evidenceQualifier, ruleExecutor, readiness, closeStore, err := newService(
 		context.Background(), "", "cargoos-pds.test",
 	)
 	if err != nil {
@@ -25,6 +25,9 @@ func TestNewServiceUsesMemoryStoreWithoutDatabaseURL(t *testing.T) {
 	}
 	if policyResolver == nil {
 		t.Fatal("newService returned a nil policy resolver")
+	}
+	if evidenceQualifier == nil {
+		t.Fatal("newService returned a nil Evidence Qualification service")
 	}
 	if ruleExecutor == nil {
 		t.Fatal("newService returned a nil Rule Execution service")
@@ -52,7 +55,7 @@ func TestNewRuleExecutionServiceRequiresPolicyVersionReader(t *testing.T) {
 }
 
 func TestNewServiceRejectsUnavailablePostgres(t *testing.T) {
-	service, evidenceService, policyResolver, ruleExecutor, readiness, closeStore, err := newService(
+	service, evidenceService, policyResolver, evidenceQualifier, ruleExecutor, readiness, closeStore, err := newService(
 		context.Background(),
 		"postgres://cargoos:cargoos@127.0.0.1:1/cargoos?sslmode=disable&connect_timeout=1",
 		"cargoos-pds.test",
@@ -69,6 +72,9 @@ func TestNewServiceRejectsUnavailablePostgres(t *testing.T) {
 	}
 	if policyResolver != nil {
 		t.Fatal("newService returned policy resolver after connection failure")
+	}
+	if evidenceQualifier != nil {
+		t.Fatal("newService returned Evidence Qualification service after connection failure")
 	}
 	if ruleExecutor != nil {
 		t.Fatal("newService returned Rule Execution service after connection failure")
