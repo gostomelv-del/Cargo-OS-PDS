@@ -143,6 +143,21 @@ func TestPostgresPolicyRegistry(t *testing.T) {
 	if err = store.Retire(ctx, policyID, "v2", boundary.Add(2*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
+	exact, err := store.FindVersion(ctx, policyID, "v2", second.Snapshot().Hash)
+	if err != nil {
+		t.Fatalf("retired policy was not available for replay: %v", err)
+	}
+	if exact.Snapshot().Hash != second.Snapshot().Hash {
+		t.Fatal("exact policy lookup changed immutable identity")
+	}
+	if _, err = store.FindVersion(
+		ctx,
+		policyID,
+		"v2",
+		"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	); !errors.Is(err, policy.ErrPolicyNotFound) {
+		t.Fatalf("expected exact hash mismatch to be not found, got %v", err)
+	}
 	if err = store.Suspend(ctx, policyID, "v2", boundary.Add(3*time.Minute)); !errors.Is(err, policy.ErrInvalidLifecycleChange) {
 		t.Fatalf("retired policy accepted transition: %v", err)
 	}
