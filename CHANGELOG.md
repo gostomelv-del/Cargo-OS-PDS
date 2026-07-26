@@ -24,6 +24,8 @@ here.
 - Domain-separated Ed25519 Evidence Bundle signatures binding the canonical
   manifest hash and Bundle Root to an explicit signer, trusted key, algorithm,
   and signing time with key validity and revocation enforcement.
+- Canonical `signature.json` embedding in deterministic `.coseb` archives and
+  one-step offline archive, integrity, Trust Store, and signature verification.
 
 ## [0.1.0-alpha] - 2026-07-26
 

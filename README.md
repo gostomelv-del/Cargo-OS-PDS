@@ -94,8 +94,10 @@ to an explicit signer, key, algorithm, and signing time using domain-separated
 SHA-256 and Ed25519. Verification reuses the immutable Trust Store and enforces
 key validity and revocation at both signing and verification time. Signing
 payloads are designed for external signers; private keys are not retained by
-PDS. A trusted timestamp and embedding the signature envelope in the portable
-archive remain separate work.
+PDS. A successfully verified bundle can be exported with its canonical
+`signature.json` envelope inside the deterministic `.coseb` layout. Signed
+archive import validates the entire archive and trusted signature in one
+offline operation. A trusted timestamp remains separate work.
 The in-memory Policy Registry stores immutable canonical policy versions,
 rejects overlapping effective periods, and resolves exactly one version at the
 Evaluation creation time. Resolution binds the resulting policy identity and
