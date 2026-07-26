@@ -137,11 +137,17 @@ func TestPostgresPolicyRegistry(t *testing.T) {
 	if err = store.Suspend(ctx, policyID, "v2", boundary.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
+	if err = store.Suspend(ctx, policyID, "v2", boundary.Add(time.Minute)); err != nil {
+		t.Fatalf("idempotent suspension retry failed: %v", err)
+	}
 	if _, err = store.Resolve(ctx, policyID, boundary); !errors.Is(err, policy.ErrPolicyNotFound) {
 		t.Fatalf("suspended policy remained resolvable: %v", err)
 	}
 	if err = store.Retire(ctx, policyID, "v2", boundary.Add(2*time.Minute)); err != nil {
 		t.Fatal(err)
+	}
+	if err = store.Retire(ctx, policyID, "v2", boundary.Add(2*time.Minute)); err != nil {
+		t.Fatalf("idempotent retirement retry failed: %v", err)
 	}
 	exact, err := store.FindVersion(ctx, policyID, "v2", second.Snapshot().Hash)
 	if err != nil {
