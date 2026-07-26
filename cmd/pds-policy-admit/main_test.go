@@ -100,7 +100,7 @@ func signedAdmissionRequest(t *testing.T) admissionRequest {
 		RequiredRuleIDs: []string{"weight"},
 		Document: json.RawMessage(`{
 			"evidence_qualification":{"version":"evidence.qualification.v1"},
-			"rules":[{"rule_id":"weight","operator":"EXISTENCE","evidence_type":"WEIGHT","min_count":1}]
+			"rules":[{"rule_id":"weight","operator":"EXISTENCE","evidence_type":"WEIGHT","minimum_count":1}]
 		}`),
 	})
 	if err != nil {
