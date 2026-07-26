@@ -48,6 +48,9 @@ The same document contains a mandatory, versioned `evidence_qualification`
 section that compiles trusted sources, allowed Evidence types and acquisition
 methods, age and clock tolerances, confidence limits, provenance, and required
 payload fields into a server-controlled Qualification Policy.
+Admission rejects a required rule when any of its selectors references an
+Evidence type or explicit source excluded by that same Qualification Policy;
+internally contradictory policies cannot become active.
 The Policy Evidence Qualification service loads that configuration only
 through the Evaluation's exact bound policy identity, qualifies the complete
 session Evidence Set, and atomically binds the result before Rule Execution.

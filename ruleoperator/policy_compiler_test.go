@@ -134,3 +134,70 @@ func TestPolicyDocumentCompilerRejectsInvalidEvidenceQualification(t *testing.T)
 		}
 	}
 }
+
+func TestPolicyDocumentCompilerRejectsRuleOutsideQualificationScope(t *testing.T) {
+	tests := []string{
+		`{
+			"evidence_qualification":{
+				"version":"qualification.v1",
+				"allowed_types":["IMAGE"]
+			},
+			"rules":[{
+				"rule_id":"weight",
+				"operator":"MATCH",
+				"selector":{"evidence_type":"WEIGHT"},
+				"expected":25
+			}]
+		}`,
+		`{
+			"evidence_qualification":{
+				"version":"qualification.v1",
+				"trusted_sources":["scale-allowed"],
+				"allowed_types":["WEIGHT"]
+			},
+			"rules":[{
+				"rule_id":"weight",
+				"operator":"RANGE",
+				"selector":{"evidence_type":"WEIGHT","source_id":"scale-denied"},
+				"minimum":"20",
+				"maximum":"30"
+			}]
+		}`,
+		`{
+			"evidence_qualification":{
+				"version":"qualification.v1",
+				"trusted_sources":["source"],
+				"allowed_types":["CONTACT"]
+			},
+			"rules":[{
+				"rule_id":"flow",
+				"operator":"SEQUENCE",
+				"steps":[
+					{"selector":{"evidence_type":"CONTACT","source_id":"source"},"expected":true},
+					{"selector":{"evidence_type":"POSITION","source_id":"source"},"expected":true}
+				]
+			}]
+		}`,
+	}
+	for _, document := range tests {
+		version := policyVersion(t, PolicyDocumentSchemaV1, document,
+			ruleIDFromDocument(t, document))
+		err := (PolicyDocumentCompiler{}).ValidatePolicyDocument(context.Background(), version)
+		if !errors.Is(err, ErrRuleOutsideQualificationScope) {
+			t.Fatalf("got %v, want %v", err, ErrRuleOutsideQualificationScope)
+		}
+	}
+}
+
+func ruleIDFromDocument(t *testing.T, document string) string {
+	t.Helper()
+	var decoded struct {
+		Rules []struct {
+			RuleID string `json:"rule_id"`
+		} `json:"rules"`
+	}
+	if err := json.Unmarshal([]byte(document), &decoded); err != nil || len(decoded.Rules) != 1 {
+		t.Fatalf("invalid test document: %v", err)
+	}
+	return decoded.Rules[0].RuleID
+}
