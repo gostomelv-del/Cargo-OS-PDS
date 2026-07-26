@@ -11,8 +11,35 @@ import (
 
 	"github.com/google/uuid"
 
+	"cargoos/evaluation"
 	"cargoos/policy"
 )
+
+type failingPolicyResolver struct {
+	err error
+}
+
+func (r failingPolicyResolver) Resolve(context.Context, string, time.Time) (*policy.Version, error) {
+	return nil, r.err
+}
+
+type recordingAggregateStore struct {
+	saves int
+}
+
+func (s *recordingAggregateStore) SaveEvaluation(
+	context.Context,
+	evaluation.EvaluationSnapshot,
+	uint64,
+	[]evaluation.OutboxRecord,
+) error {
+	s.saves++
+	return nil
+}
+
+func (*recordingAggregateStore) FindEvaluation(context.Context, uuid.UUID) (*evaluation.EvaluationAggregate, error) {
+	return nil, ErrEvaluationNotFound
+}
 
 func resolutionRegistry(t *testing.T, from time.Time, rules []string) *policy.Registry {
 	t.Helper()
@@ -52,6 +79,69 @@ func resolutionRegistry(t *testing.T, from time.Time, rules []string) *policy.Re
 		t.Fatal(err)
 	}
 	return registry
+}
+
+func TestCreateForPolicyDerivesRulesAndPersistsBoundEvaluationAtomically(t *testing.T) {
+	now := time.Date(2026, 7, 26, 9, 0, 0, 0, time.UTC)
+	store := NewMemoryStore()
+	service := NewServiceWithStore(store, func() time.Time { return now })
+	registry := resolutionRegistry(t, now.Add(-time.Hour), []string{"weight", "support-sequence"})
+
+	created, err := service.CreateForPolicy(context.Background(), uuid.New(), "cargo-transfer", registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sameRulePlan(created.RequiredRuleIDs, []string{"weight", "support-sequence"}) {
+		t.Fatalf("rule plan did not come from policy: %#v", created.RequiredRuleIDs)
+	}
+	if created.PolicyBinding == nil ||
+		created.PolicyBinding.PolicyID != "cargo-transfer" ||
+		created.PolicyBinding.Version != "1.0.0" ||
+		created.PolicyBinding.BoundAt != now {
+		t.Fatalf("policy was not bound at creation: %#v", created.PolicyBinding)
+	}
+	records := store.OutboxRecords()
+	if len(records) != 4 ||
+		records[0].EventType != "EvaluationCreatedEvent" ||
+		records[1].EventType != "RequiredRuleRegisteredEvent" ||
+		records[2].EventType != "RequiredRuleRegisteredEvent" ||
+		records[3].EventType != "VerificationPolicyBoundEvent" {
+		t.Fatalf("creation events were not persisted atomically: %#v", records)
+	}
+}
+
+func TestCreateForPolicyDoesNotPersistWhenResolutionFails(t *testing.T) {
+	expected := errors.New("resolver unavailable")
+	store := &recordingAggregateStore{}
+	service := NewServiceWithStore(store, func() time.Time {
+		return time.Date(2026, 7, 26, 9, 0, 0, 0, time.UTC)
+	})
+	if _, err := service.CreateForPolicy(
+		context.Background(),
+		uuid.New(),
+		"cargo-transfer",
+		failingPolicyResolver{err: expected},
+	); !errors.Is(err, expected) {
+		t.Fatalf("expected resolver failure, got %v", err)
+	}
+	if store.saves != 0 {
+		t.Fatalf("failed resolution persisted %d evaluations", store.saves)
+	}
+}
+
+func TestCreateForPolicyRejectsMissingDependenciesAndVersion(t *testing.T) {
+	service := NewService(time.Now)
+	if _, err := service.CreateForPolicy(context.Background(), uuid.New(), "cargo-transfer", nil); !errors.Is(err, ErrPolicyResolverRequired) {
+		t.Fatalf("expected resolver requirement, got %v", err)
+	}
+	if _, err := service.CreateForPolicy(
+		context.Background(),
+		uuid.New(),
+		"cargo-transfer",
+		failingPolicyResolver{},
+	); !errors.Is(err, ErrPolicyResolutionInvalid) {
+		t.Fatalf("expected invalid resolution error, got %v", err)
+	}
 }
 
 func TestResolveAndBindPolicyUsesEvaluationCreationTime(t *testing.T) {
