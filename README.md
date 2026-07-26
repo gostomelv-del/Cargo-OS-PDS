@@ -87,9 +87,15 @@ modification of either the manifest or any included object. A verified bundle
 can be exported as a byte-deterministic `.coseb` ZIP archive containing the
 canonical manifest and its exact objects. Import enforces the fixed portable
 layout, size and entry limits, stored entries, canonical paths, and a complete
-manifest-to-object match before integrity verification. Bundle signatures,
-independent decision verification, and human-readable reports remain outside
-this package.
+manifest-to-object match before integrity verification. Independent decision
+verification and human-readable reports remain outside this package.
+The bundle signature profile binds the canonical manifest hash and Bundle Root
+to an explicit signer, key, algorithm, and signing time using domain-separated
+SHA-256 and Ed25519. Verification reuses the immutable Trust Store and enforces
+key validity and revocation at both signing and verification time. Signing
+payloads are designed for external signers; private keys are not retained by
+PDS. A trusted timestamp and embedding the signature envelope in the portable
+archive remain separate work.
 The in-memory Policy Registry stores immutable canonical policy versions,
 rejects overlapping effective periods, and resolves exactly one version at the
 Evaluation creation time. Resolution binds the resulting policy identity and

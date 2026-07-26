@@ -21,6 +21,9 @@ here.
 - Deterministic `.coseb` ZIP export and offline import with a fixed portable
   layout, bounded entries and size, path-traversal protection, and mandatory
   manifest/object integrity verification.
+- Domain-separated Ed25519 Evidence Bundle signatures binding the canonical
+  manifest hash and Bundle Root to an explicit signer, trusted key, algorithm,
+  and signing time with key validity and revocation enforcement.
 
 ## [0.1.0-alpha] - 2026-07-26
 
