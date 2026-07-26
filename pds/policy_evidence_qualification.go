@@ -72,11 +72,14 @@ func (s *PolicyEvidenceQualificationService) QualifyAndBind(
 	if s.compiler == nil {
 		return evaluation.EvaluationSnapshot{}, ErrQualificationCompilerRequired
 	}
-	trace, err := s.evaluations.Trace(ctx, evaluationID)
+	evaluationSnapshot, err := s.evaluations.Snapshot(ctx, evaluationID)
 	if err != nil {
 		return evaluation.EvaluationSnapshot{}, err
 	}
-	binding := trace.PolicyBinding
+	if evaluationSnapshot.EvidenceBinding != nil {
+		return evaluationSnapshot, nil
+	}
+	binding := evaluationSnapshot.PolicyBinding
 	if binding == nil {
 		return evaluation.EvaluationSnapshot{}, ErrPolicyBindingMissing
 	}
@@ -106,9 +109,20 @@ func (s *PolicyEvidenceQualificationService) QualifyAndBind(
 	if err != nil {
 		return evaluation.EvaluationSnapshot{}, err
 	}
-	result, err := s.evidence.QualifySession(ctx, trace.SessionID, qualifier)
+	result, err := s.evidence.QualifySession(ctx, evaluationSnapshot.SessionID, qualifier)
 	if err != nil {
 		return evaluation.EvaluationSnapshot{}, err
 	}
-	return s.evaluations.BindEvidenceQualification(ctx, evaluationID, result)
+	bound, err := s.evaluations.BindEvidenceQualification(ctx, evaluationID, result)
+	if err == nil {
+		return bound, nil
+	}
+	if errors.Is(err, evaluation.ErrEvidenceAlreadyBound) ||
+		errors.Is(err, ErrConcurrentModification) {
+		latest, findErr := s.evaluations.Snapshot(ctx, evaluationID)
+		if findErr == nil && latest.EvidenceBinding != nil {
+			return latest, nil
+		}
+	}
+	return evaluation.EvaluationSnapshot{}, err
 }
