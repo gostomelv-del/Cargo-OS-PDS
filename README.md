@@ -139,6 +139,8 @@ bound qualified Evidence Set and executes every required operator atomically.
 Every command endpoint accepts exactly one size-limited JSON value; unknown
 fields and trailing JSON values are rejected before an application service is
 invoked.
+HTTP errors use stable public codes. Unknown storage or runtime failures return
+`500 internal_error`; internal error text is never copied into a response.
 `POST /v1/evaluations/{evaluation_id}/execute-rules` invokes that server-side
 service and accepts no caller-defined rules or outcomes. Missing Evidence,
 policy bindings, or registered operators fail closed without partial results.
