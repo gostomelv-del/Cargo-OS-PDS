@@ -106,7 +106,7 @@ func signedAdmissionRequest(t *testing.T) admissionRequest {
 	if err != nil {
 		t.Fatal(err)
 	}
-	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
