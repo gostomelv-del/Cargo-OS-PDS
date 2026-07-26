@@ -83,9 +83,13 @@ The initial Evidence Bundle foundation can package a finalized Decision Trace,
 its exact Policy reference, and every bound Evidence Object into a
 deterministically ordered manifest. Each object receives a SHA-256 digest and
 the manifest receives a reproducible Bundle Root; verification detects
-modification of either the manifest or any included object. Archive export,
-bundle signatures, independent verification tools, and human-readable reports
-remain outside this initial package.
+modification of either the manifest or any included object. A verified bundle
+can be exported as a byte-deterministic `.coseb` ZIP archive containing the
+canonical manifest and its exact objects. Import enforces the fixed portable
+layout, size and entry limits, stored entries, canonical paths, and a complete
+manifest-to-object match before integrity verification. Bundle signatures,
+independent decision verification, and human-readable reports remain outside
+this package.
 The in-memory Policy Registry stores immutable canonical policy versions,
 rejects overlapping effective periods, and resolves exactly one version at the
 Evaluation creation time. Resolution binds the resulting policy identity and

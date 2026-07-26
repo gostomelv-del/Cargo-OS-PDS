@@ -18,6 +18,9 @@ here.
 - Initial Evidence Bundle foundation with a deterministic manifest, exact
   Policy and Evidence references, per-object SHA-256 digests, a Bundle Root,
   and modification detection.
+- Deterministic `.coseb` ZIP export and offline import with a fixed portable
+  layout, bounded entries and size, path-traversal protection, and mandatory
+  manifest/object integrity verification.
 
 ## [0.1.0-alpha] - 2026-07-26
 
