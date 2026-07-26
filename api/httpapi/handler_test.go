@@ -61,7 +61,12 @@ func TestEvaluationDecisionTraceFlow(t *testing.T) {
 
 	perform(t, handler, http.MethodPost, "/v1/evaluations/"+id+"/start", "", http.StatusOK)
 	perform(t, handler, http.MethodPost, "/v1/evaluations/"+id+"/outcomes",
-		`{"rule_id":"weight","status":"PASS"}`, http.StatusOK)
+		`{"rule_id":"weight","status":"PASS"}`, http.StatusNotFound)
+	if _, err := service.RecordOutcome(context.Background(), snapshot.EvaluationID, evaluation.RuleOutcome{
+		RuleID: "weight", Status: evaluation.RuleOutcomePass,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	completed := perform(t, handler, http.MethodPost, "/v1/evaluations/"+id+"/complete", "", http.StatusOK)
 
 	var trace evaluation.DecisionTrace
@@ -73,6 +78,33 @@ func TestEvaluationDecisionTraceFlow(t *testing.T) {
 	}
 
 	perform(t, handler, http.MethodGet, "/v1/evaluations/"+id+"/decision-trace", "", http.StatusOK)
+}
+
+func TestManualOutcomeInjectionDoesNotChangeEvaluation(t *testing.T) {
+	now := time.Date(2026, 7, 26, 11, 0, 0, 0, time.UTC)
+	service := pds.NewService(func() time.Time {
+		now = now.Add(time.Second)
+		return now
+	})
+	handler := evaluationHandler(t, service, now.Add(-time.Hour), []string{"weight"})
+	created := perform(t, handler, http.MethodPost, "/v1/evaluations",
+		`{"policy_id":"cargo-transfer"}`, http.StatusCreated)
+	var snapshot evaluation.EvaluationSnapshot
+	if err := json.Unmarshal(created.Body.Bytes(), &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	id := snapshot.EvaluationID.String()
+	perform(t, handler, http.MethodPost, "/v1/evaluations/"+id+"/start", "", http.StatusOK)
+	perform(t, handler, http.MethodPost, "/v1/evaluations/"+id+"/outcomes",
+		`{"rule_id":"weight","status":"PASS"}`, http.StatusNotFound)
+	trace := perform(t, handler, http.MethodGet, "/v1/evaluations/"+id+"/decision-trace", "", http.StatusOK)
+	var decision evaluation.DecisionTrace
+	if err := json.Unmarshal(trace.Body.Bytes(), &decision); err != nil {
+		t.Fatal(err)
+	}
+	if len(decision.RuleOutcomes) != 0 || len(decision.MissingRuleIDs) != 1 || decision.MissingRuleIDs[0] != "weight" {
+		t.Fatalf("manual outcome injection changed the evaluation: %#v", decision)
+	}
 }
 
 func TestCompletionRejectsMissingRequiredRule(t *testing.T) {
