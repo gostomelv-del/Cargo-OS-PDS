@@ -44,6 +44,9 @@ Policy documents declaring schema `policy.document.v1` can define all five
 operators in a strict `rules` array. Unknown fields, unsupported operators,
 duplicate rule IDs, and fields that do not apply to the selected operator are
 rejected instead of being ignored.
+The server wires this compiler through the exact immutable Policy Version
+reader in both in-memory and PostgreSQL modes; Rule Execution no longer relies
+on a separately registered static operator set.
 The in-memory Policy Registry stores immutable canonical policy versions,
 rejects overlapping effective periods, and resolves exactly one version at the
 Evaluation creation time. Resolution binds the resulting policy identity and
