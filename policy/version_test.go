@@ -128,3 +128,31 @@ func TestRegistryRejectsOverlappingVersions(t *testing.T) {
 		t.Fatalf("identical version was not idempotent: %v", err)
 	}
 }
+
+func TestRegistryFindsExactVersionAfterLifecycleClosure(t *testing.T) {
+	base := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	version, _ := NewVersion(policyInput("1.0.0", base, nil))
+	snapshot := version.Snapshot()
+	registry := NewRegistry()
+	if err := registry.Add(context.Background(), activatedForTest(t, version, base)); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Suspend(context.Background(), snapshot.PolicyID, snapshot.Version, base.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	found, err := registry.FindVersion(context.Background(), snapshot.PolicyID, snapshot.Version, snapshot.Hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found.Snapshot().Hash != snapshot.Hash {
+		t.Fatal("exact lookup changed immutable policy identity")
+	}
+	if _, err = registry.FindVersion(
+		context.Background(),
+		snapshot.PolicyID,
+		snapshot.Version,
+		"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	); !errors.Is(err, ErrPolicyNotFound) {
+		t.Fatalf("expected hash mismatch to remain undisclosed, got %v", err)
+	}
+}
