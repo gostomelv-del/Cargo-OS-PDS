@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	ErrPolicyRegistryRequired       = errors.New("policy: registry is required")
+	ErrPolicyRegistryRequired      = errors.New("policy: registry is required")
 	ErrVerificationAfterActivation = errors.New("policy: verification must not occur after activation")
 )
 
