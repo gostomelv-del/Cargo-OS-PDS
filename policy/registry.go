@@ -19,6 +19,10 @@ type Registry struct {
 	versions map[string]map[string]registryEntry
 }
 
+type VersionReader interface {
+	FindVersion(context.Context, string, string, string) (*Version, error)
+}
+
 type registryEntry struct {
 	snapshot Snapshot
 	status   LifecycleStatus
@@ -106,6 +110,26 @@ func (r *Registry) Resolve(_ context.Context, policyID string, at time.Time) (*V
 	return Rehydrate(matches[0])
 }
 
+// FindVersion retrieves one immutable policy by its complete bound identity.
+// Lifecycle state is intentionally ignored so historical evaluations remain
+// reproducible after suspension or retirement.
+func (r *Registry) FindVersion(
+	_ context.Context,
+	policyID string,
+	version string,
+	hash string,
+) (*Version, error) {
+	r.mu.RLock()
+	entry, found := r.versions[policyID][version]
+	if found && entry.snapshot.Hash == hash {
+		snapshot := copySnapshot(entry.snapshot)
+		r.mu.RUnlock()
+		return Rehydrate(snapshot)
+	}
+	r.mu.RUnlock()
+	return nil, ErrPolicyNotFound
+}
+
 func effectiveAt(snapshot Snapshot, at time.Time) bool {
 	at = at.UTC()
 	return !at.IsZero() && !at.Before(snapshot.EffectiveFrom) && (snapshot.EffectiveUntil == nil || at.Before(*snapshot.EffectiveUntil))
@@ -115,3 +139,5 @@ func effectivePeriodsOverlap(left, right Snapshot) bool {
 	return (left.EffectiveUntil == nil || right.EffectiveFrom.Before(*left.EffectiveUntil)) &&
 		(right.EffectiveUntil == nil || left.EffectiveFrom.Before(*right.EffectiveUntil))
 }
+
+var _ VersionReader = (*Registry)(nil)
