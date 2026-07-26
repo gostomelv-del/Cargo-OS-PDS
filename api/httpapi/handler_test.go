@@ -182,6 +182,31 @@ func TestEvaluationCreationRejectsClientSelectedRules(t *testing.T) {
 	}
 }
 
+func TestCommandsRejectTrailingJSONValues(t *testing.T) {
+	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	handler := evaluationHandler(
+		t,
+		pds.NewService(func() time.Time { return now }),
+		now.Add(-time.Hour),
+		[]string{"weight"},
+	)
+	perform(t, handler, http.MethodPost, "/v1/evaluations",
+		`{"policy_id":"cargo-transfer"}{"policy_id":"substitute"}`,
+		http.StatusBadRequest,
+	)
+
+	executor := &recordingRuleExecutor{}
+	runtimeHandler := NewHandlerWithRuntime(pds.NewService(nil), nil, nil, executor, nil)
+	perform(t, runtimeHandler, http.MethodPost,
+		"/v1/evaluations/"+uuid.New().String()+"/execute-rules",
+		`{}{}`,
+		http.StatusBadRequest,
+	)
+	if executor.calledWith != uuid.Nil {
+		t.Fatalf("trailing JSON reached executor: %s", executor.calledWith)
+	}
+}
+
 func TestHealth(t *testing.T) {
 	perform(t, NewHandler(pds.NewService(nil)), http.MethodGet, "/healthz", "", http.StatusOK)
 }

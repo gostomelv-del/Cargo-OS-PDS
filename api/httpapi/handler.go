@@ -319,7 +319,10 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 func decodeJSON(r *http.Request, target any) error {
 	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
 	decoder.DisallowUnknownFields()
-	return decoder.Decode(target)
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	return requireJSONEnd(decoder)
 }
 
 func decodeOptionalJSON(r *http.Request, target any) error {
@@ -329,7 +332,21 @@ func decodeOptionalJSON(r *http.Request, target any) error {
 	if errors.Is(err, io.EOF) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	return requireJSONEnd(decoder)
+}
+
+func requireJSONEnd(decoder *json.Decoder) error {
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err != nil {
+			return err
+		}
+		return errors.New("httpapi: request body must contain one JSON value")
+	}
+	return nil
 }
 
 func writeError(w http.ResponseWriter, status int, code string) {
