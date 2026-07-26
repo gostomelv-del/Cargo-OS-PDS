@@ -30,6 +30,20 @@ type recordingRuleExecutor struct {
 	err        error
 }
 
+type recordingEvidenceQualifier struct {
+	calledWith uuid.UUID
+	snapshot   evaluation.EvaluationSnapshot
+	err        error
+}
+
+func (q *recordingEvidenceQualifier) QualifyAndBind(
+	_ context.Context,
+	id uuid.UUID,
+) (evaluation.EvaluationSnapshot, error) {
+	q.calledWith = id
+	return q.snapshot, q.err
+}
+
 func (e *recordingRuleExecutor) Execute(_ context.Context, id uuid.UUID) (evaluation.EvaluationSnapshot, error) {
 	e.calledWith = id
 	return e.snapshot, e.err
@@ -148,6 +162,44 @@ func TestRuleExecutionEndpointFailsClosedWithoutExecutor(t *testing.T) {
 	id := uuid.New().String()
 	perform(t, NewHandler(pds.NewService(nil)), http.MethodPost,
 		"/v1/evaluations/"+id+"/execute-rules", "", http.StatusServiceUnavailable)
+}
+
+func TestEvidenceQualificationEndpointDelegatesWithoutCallerPolicy(t *testing.T) {
+	evaluationID := uuid.New()
+	qualifier := &recordingEvidenceQualifier{
+		snapshot: evaluation.EvaluationSnapshot{EvaluationID: evaluationID},
+	}
+	handler := NewHandlerWithQualificationRuntime(
+		pds.NewService(nil), nil, nil, qualifier, nil, nil,
+	)
+	perform(t, handler, http.MethodPost,
+		"/v1/evaluations/"+evaluationID.String()+"/qualify-evidence",
+		`{"trusted_sources":["caller-source"]}`,
+		http.StatusBadRequest,
+	)
+	if qualifier.calledWith != uuid.Nil {
+		t.Fatalf("caller-defined qualification reached service: %s", qualifier.calledWith)
+	}
+	response := perform(t, handler, http.MethodPost,
+		"/v1/evaluations/"+evaluationID.String()+"/qualify-evidence",
+		"", http.StatusOK)
+	if qualifier.calledWith != evaluationID {
+		t.Fatalf("qualifier received %s, want %s", qualifier.calledWith, evaluationID)
+	}
+	var snapshot evaluation.EvaluationSnapshot
+	if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.EvaluationID != evaluationID {
+		t.Fatalf("unexpected qualification response: %#v", snapshot)
+	}
+}
+
+func TestEvidenceQualificationEndpointFailsClosedWithoutService(t *testing.T) {
+	id := uuid.New().String()
+	perform(t, NewHandler(pds.NewService(nil)), http.MethodPost,
+		"/v1/evaluations/"+id+"/qualify-evidence", "",
+		http.StatusServiceUnavailable)
 }
 
 func TestCompletionRejectsMissingRequiredRule(t *testing.T) {
