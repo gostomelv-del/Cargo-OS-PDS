@@ -261,9 +261,22 @@ func (h *Handler) writeEvidenceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "evidence_not_found")
 	case errors.Is(err, evidence.ErrConflict):
 		writeError(w, http.StatusConflict, "evidence_conflict")
+	case isEvidenceInputError(err):
+		writeError(w, http.StatusBadRequest, "invalid_evidence")
 	default:
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal_error")
 	}
+}
+
+func isEvidenceInputError(err error) bool {
+	return errors.Is(err, evidence.ErrSessionIDRequired) ||
+		errors.Is(err, evidence.ErrSourceIDRequired) ||
+		errors.Is(err, evidence.ErrSourceTypeRequired) ||
+		errors.Is(err, evidence.ErrInvalidEvidenceType) ||
+		errors.Is(err, evidence.ErrObservedAtRequired) ||
+		errors.Is(err, evidence.ErrInvalidTimestampOrder) ||
+		errors.Is(err, evidence.ErrInvalidPayload) ||
+		errors.Is(err, evidence.ErrInvalidConfidence)
 }
 
 func (h *Handler) createEvaluation(w http.ResponseWriter, r *http.Request) {
@@ -307,12 +320,24 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusServiceUnavailable, "policy_resolver_unavailable")
 	case errors.Is(err, policy.ErrPolicyNotFound):
 		writeError(w, http.StatusNotFound, "active_policy_not_found")
-	case errors.Is(err, evaluation.ErrRequiredRulesIncomplete),
-		errors.Is(err, evaluation.ErrInvalidStateTransition),
-		errors.Is(err, evaluation.ErrRuleOutcomeConflict):
-		writeError(w, http.StatusConflict, err.Error())
+	case errors.Is(err, evaluation.ErrRequiredRulesIncomplete):
+		writeError(w, http.StatusConflict, "required_rules_incomplete")
+	case errors.Is(err, evaluation.ErrInvalidStateTransition):
+		writeError(w, http.StatusConflict, "invalid_state_transition")
+	case errors.Is(err, evaluation.ErrRuleOutcomeConflict):
+		writeError(w, http.StatusConflict, "rule_outcome_conflict")
+	case errors.Is(err, pds.ErrEvidenceBindingMissing):
+		writeError(w, http.StatusConflict, "evidence_binding_missing")
+	case errors.Is(err, pds.ErrPolicyBindingMissing):
+		writeError(w, http.StatusConflict, "policy_binding_missing")
+	case errors.Is(err, pds.ErrEvidenceNotQualified):
+		writeError(w, http.StatusConflict, "evidence_not_qualified")
+	case errors.Is(err, pds.ErrPartialRuleOutcomes):
+		writeError(w, http.StatusConflict, "partial_rule_outcomes")
+	case errors.Is(err, pds.ErrRuleOperatorMissing):
+		writeError(w, http.StatusUnprocessableEntity, "policy_rule_unavailable")
 	default:
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal_error")
 	}
 }
 
