@@ -21,6 +21,20 @@ type testRuleOperator struct {
 	check    func(RuleInput) error
 }
 
+type recordingRuleResolver struct {
+	references []PolicyRuleReference
+	operator   RuleOperator
+	err        error
+}
+
+func (r *recordingRuleResolver) ResolveRuleOperator(
+	_ context.Context,
+	reference PolicyRuleReference,
+) (RuleOperator, error) {
+	r.references = append(r.references, reference)
+	return r.operator, r.err
+}
+
 func (o *testRuleOperator) RuleID() string { return o.id }
 
 func (o *testRuleOperator) Evaluate(_ context.Context, input RuleInput) (RuleDecision, error) {
@@ -162,5 +176,46 @@ func TestRuleExecutionRequiresEveryOperator(t *testing.T) {
 	runner, _ := NewRuleExecutionService(fixture.evaluations, fixture.evidence, nil)
 	if _, err := runner.Execute(context.Background(), fixture.evaluation.EvaluationID); !errors.Is(err, ErrRuleOperatorMissing) {
 		t.Fatalf("expected missing operator error, got %v", err)
+	}
+}
+
+func TestRuleExecutionResolvesOperatorForExactBoundPolicy(t *testing.T) {
+	fixture := newExecutionFixture(t, []string{"weight"}, evidence.QualificationPolicy{Version: "qualification.v1"})
+	operator := &testRuleOperator{id: "weight", decision: RuleDecision{Status: evaluation.RuleOutcomePass}}
+	resolver := &recordingRuleResolver{operator: operator}
+	runner, err := NewRuleExecutionServiceWithResolver(fixture.evaluations, fixture.evidence, resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = runner.Execute(context.Background(), fixture.evaluation.EvaluationID); err != nil {
+		t.Fatal(err)
+	}
+	if len(resolver.references) != 1 {
+		t.Fatalf("expected one policy-scoped resolution, got %#v", resolver.references)
+	}
+	reference := resolver.references[0]
+	if reference.PolicyID != "cargo-transfer" ||
+		reference.PolicyVersion != "policy.v1" ||
+		reference.PolicyHash != executionPolicyHash ||
+		reference.RuleID != "weight" {
+		t.Fatalf("wrong policy rule reference: %#v", reference)
+	}
+}
+
+func TestRuleExecutionRejectsResolverIdentitySubstitution(t *testing.T) {
+	fixture := newExecutionFixture(t, []string{"weight"}, evidence.QualificationPolicy{Version: "qualification.v1"})
+	resolver := &recordingRuleResolver{
+		operator: &testRuleOperator{id: "different-rule", decision: RuleDecision{Status: evaluation.RuleOutcomePass}},
+	}
+	runner, _ := NewRuleExecutionServiceWithResolver(fixture.evaluations, fixture.evidence, resolver)
+	if _, err := runner.Execute(context.Background(), fixture.evaluation.EvaluationID); !errors.Is(err, ErrResolvedRuleMismatch) {
+		t.Fatalf("expected rule identity rejection, got %v", err)
+	}
+}
+
+func TestRuleExecutionRequiresPolicyRuleResolver(t *testing.T) {
+	fixture := newExecutionFixture(t, []string{"weight"}, evidence.QualificationPolicy{Version: "qualification.v1"})
+	if _, err := NewRuleExecutionServiceWithResolver(fixture.evaluations, fixture.evidence, nil); !errors.Is(err, ErrRuleResolverRequired) {
+		t.Fatalf("expected resolver requirement, got %v", err)
 	}
 }

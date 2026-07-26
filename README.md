@@ -127,6 +127,10 @@ bound qualified Evidence Set and executes every required operator atomically.
 `POST /v1/evaluations/{evaluation_id}/execute-rules` invokes that server-side
 service and accepts no caller-defined rules or outcomes. Missing Evidence,
 policy bindings, or registered operators fail closed without partial results.
+Rule operators can be resolved through the exact bound `policy_id`, version,
+SHA-256 hash, and `rule_id`. A resolver that returns an operator with a
+different identity is rejected before any Evidence is evaluated or outcome is
+stored.
 
 ## Verification
 
