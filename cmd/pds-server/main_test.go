@@ -2,7 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"testing"
+
+	"cargoos/evidence"
+	"cargoos/pds"
 )
 
 func TestNewServiceUsesMemoryStoreWithoutDatabaseURL(t *testing.T) {
@@ -27,6 +31,23 @@ func TestNewServiceUsesMemoryStoreWithoutDatabaseURL(t *testing.T) {
 	}
 	if readiness == nil || readiness.Check(context.Background()) != nil {
 		t.Fatal("in-memory service should be ready")
+	}
+}
+
+func TestNewRuleExecutionServiceRequiresPolicyVersionReader(t *testing.T) {
+	evidenceService, err := evidence.NewService(
+		evidence.NewMemoryRepository(),
+		evidence.ServiceConfig{SchemaVersion: "evidence.v1", RuntimeVersion: "cargoos-pds.test"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	executor, err := newRuleExecutionService(pds.NewService(nil), evidenceService, nil)
+	if !errors.Is(err, pds.ErrPolicyVersionReaderRequired) {
+		t.Fatalf("got %v, want %v", err, pds.ErrPolicyVersionReaderRequired)
+	}
+	if executor != nil {
+		t.Fatal("newRuleExecutionService returned an executor without a Policy Version Reader")
 	}
 }
 
