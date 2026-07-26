@@ -45,6 +45,17 @@ func NewServiceWithStore(store AggregateStore, now Clock) *Service {
 	return &Service{store: store, now: now}
 }
 
+func (s *Service) Snapshot(
+	ctx context.Context,
+	id uuid.UUID,
+) (evaluation.EvaluationSnapshot, error) {
+	aggregate, err := s.find(ctx, id)
+	if err != nil {
+		return evaluation.EvaluationSnapshot{}, err
+	}
+	return aggregate.Snapshot()
+}
+
 func (s *Service) Create(
 	ctx context.Context,
 	sessionID uuid.UUID,
