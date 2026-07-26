@@ -54,6 +54,9 @@ session Evidence Set, and atomically binds the result before Rule Execution.
 Qualification commands are idempotent: once an Evidence Binding exists,
 retries return that immutable binding without recalculating timestamps or
 re-reading mutable session state.
+Evaluation `start` and `complete` commands are also idempotent in their target
+states. Network retries return the existing start timestamp or completed
+Decision Trace without emitting duplicate lifecycle events.
 The HTTP integration suite verifies the entire public lifecycle from Evidence
 ingestion and Policy-derived Evaluation creation through qualification, Rule
 Execution, completion, and retrieval of the final Decision Trace.
