@@ -67,6 +67,12 @@ re-reading mutable session state.
 Evaluation `start` and `complete` commands are also idempotent in their target
 states. Network retries return the existing start timestamp or completed
 Decision Trace without emitting duplicate lifecycle events.
+The application service also provides a server-controlled timeout command for
+CREATED and RUNNING Evaluations. It derives the applicable deadline from the
+persisted lifecycle timestamp, fails closed before that deadline, and records
+one immutable EXPIRED state with the stable `EVALUATION_TIMEOUT` reason.
+Timeout retries return the original expiration timestamp and do not emit
+duplicate outbox events.
 The HTTP integration suite verifies the entire public lifecycle from Evidence
 ingestion and Policy-derived Evaluation creation through qualification, Rule
 Execution, completion, and retrieval of the final Decision Trace.

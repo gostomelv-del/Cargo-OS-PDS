@@ -91,3 +91,30 @@ func TestRequiredRulesCannotChangeAfterCompletion(t *testing.T) {
 		t.Fatalf("expected terminal-state rejection, got %v", err)
 	}
 }
+
+func TestExpireRecordsTimeoutDecision(t *testing.T) {
+	base := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	e, err := NewEvaluation(uuid.New(), uuid.New(), base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = e.Expire(base.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := e.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.State != StateExpired ||
+		snapshot.Result != ResultSystemException ||
+		len(snapshot.ReasonCodes) != 1 ||
+		snapshot.ReasonCodes[0] != ReasonCodeEvaluationTimeout {
+		t.Fatalf("unexpected expired decision: %#v", snapshot)
+	}
+	events := e.DomainEvents()
+	expired, ok := events[len(events)-1].(EvaluationExpiredEvent)
+	if !ok || len(expired.ReasonCodes) != 1 ||
+		expired.ReasonCodes[0] != ReasonCodeEvaluationTimeout {
+		t.Fatalf("unexpected timeout event: %#v", events)
+	}
+}

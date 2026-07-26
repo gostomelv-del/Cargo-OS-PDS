@@ -71,6 +71,8 @@ var reasonCodePattern = regexp.MustCompile(`^[A-Z][A-Z0-9_]{1,63}$`)
 
 type ReasonCode string
 
+const ReasonCodeEvaluationTimeout ReasonCode = "EVALUATION_TIMEOUT"
+
 func NewReasonCode(value string) (ReasonCode, error) {
 	v := strings.ToUpper(strings.TrimSpace(value))
 	if !reasonCodePattern.MatchString(v) {
