@@ -40,6 +40,10 @@ events, Decision Traces, and every Rule Operator input.
 The `EXISTENCE` operator verifies that at least `min_count` qualified
 observations exist for a configured Evidence type and optional source. A count
 below the mandatory threshold produces an explicit failing Rule Outcome.
+Policy documents declaring schema `policy.document.v1` can define all five
+operators in a strict `rules` array. Unknown fields, unsupported operators,
+duplicate rule IDs, and fields that do not apply to the selected operator are
+rejected instead of being ignored.
 The in-memory Policy Registry stores immutable canonical policy versions,
 rejects overlapping effective periods, and resolves exactly one version at the
 Evaluation creation time. Resolution binds the resulting policy identity and
