@@ -60,6 +60,21 @@ type sequenceStepV1 struct {
 	Expected json.RawMessage `json:"expected"`
 }
 
+func (compiler PolicyDocumentCompiler) ValidatePolicyDocument(
+	ctx context.Context,
+	version *policy.Version,
+) error {
+	if version == nil {
+		return ErrInvalidPolicyDocument
+	}
+	for _, ruleID := range version.Snapshot().RequiredRuleIDs {
+		if _, err := compiler.CompileRule(ctx, version, ruleID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (PolicyDocumentCompiler) CompileRule(
 	_ context.Context,
 	version *policy.Version,
@@ -204,3 +219,4 @@ func decodeStrict(payload []byte, target any) error {
 }
 
 var _ pds.PolicyRuleCompiler = PolicyDocumentCompiler{}
+var _ policy.DocumentValidator = PolicyDocumentCompiler{}
