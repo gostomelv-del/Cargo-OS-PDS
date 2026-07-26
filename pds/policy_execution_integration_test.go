@@ -23,11 +23,12 @@ func TestSignedPolicyExecutesBoundRuleEndToEnd(t *testing.T) {
 	registry := policy.NewRegistry()
 	version := admitRangePolicy(t, ctx, registry, now)
 
+	qualificationNow := now
 	evidenceService, err := evidence.NewService(
 		evidence.NewMemoryRepository(),
 		evidence.ServiceConfig{
 			SchemaVersion: "evidence.v1", RuntimeVersion: "cargoos-pds.test",
-			Clock: func() time.Time { return now },
+			Clock: func() time.Time { return qualificationNow },
 		},
 	)
 	if err != nil {
@@ -60,8 +61,22 @@ func TestSignedPolicyExecutesBoundRuleEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = qualificationService.QualifyAndBind(ctx, created.EvaluationID); err != nil {
+	firstQualification, err := qualificationService.QualifyAndBind(ctx, created.EvaluationID)
+	if err != nil {
 		t.Fatal(err)
+	}
+	qualificationNow = qualificationNow.Add(time.Minute)
+	retriedQualification, err := qualificationService.QualifyAndBind(ctx, created.EvaluationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstQualification.EvidenceBinding == nil ||
+		retriedQualification.EvidenceBinding == nil ||
+		!firstQualification.EvidenceBinding.QualifiedAt.Equal(
+			retriedQualification.EvidenceBinding.QualifiedAt,
+		) {
+		t.Fatalf("qualification retry changed immutable binding: first=%#v retry=%#v",
+			firstQualification.EvidenceBinding, retriedQualification.EvidenceBinding)
 	}
 	resolver, err := pds.NewPolicyDocumentRuleResolver(
 		registry,
