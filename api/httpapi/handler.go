@@ -14,11 +14,13 @@ import (
 	"cargoos/evaluation"
 	"cargoos/evidence"
 	"cargoos/pds"
+	"cargoos/policy"
 )
 
 type Handler struct {
 	service         *pds.Service
 	evidenceService *evidence.Service
+	policyResolver  pds.PolicyResolver
 	readiness       ReadinessChecker
 }
 
@@ -45,13 +47,25 @@ func NewHandlerWithEvidence(
 	evidenceService *evidence.Service,
 	readiness ReadinessChecker,
 ) http.Handler {
+	return NewHandlerWithPolicyResolver(service, evidenceService, nil, readiness)
+}
+
+func NewHandlerWithPolicyResolver(
+	service *pds.Service,
+	evidenceService *evidence.Service,
+	policyResolver pds.PolicyResolver,
+	readiness ReadinessChecker,
+) http.Handler {
 	if readiness == nil {
 		readiness = ReadinessFunc(func(context.Context) error { return nil })
 	}
 	if evidenceService == nil {
 		evidenceService = defaultEvidenceService()
 	}
-	return &Handler{service: service, evidenceService: evidenceService, readiness: readiness}
+	return &Handler{
+		service: service, evidenceService: evidenceService,
+		policyResolver: policyResolver, readiness: readiness,
+	}
 }
 
 func defaultEvidenceService() *evidence.Service {
@@ -65,8 +79,8 @@ func defaultEvidenceService() *evidence.Service {
 }
 
 type createEvaluationRequest struct {
-	SessionID       string   `json:"session_id"`
-	RequiredRuleIDs []string `json:"required_rule_ids"`
+	SessionID string `json:"session_id"`
+	PolicyID  string `json:"policy_id"`
 }
 
 type recordOutcomeRequest struct {
@@ -244,7 +258,7 @@ func (h *Handler) createEvaluation(w http.ResponseWriter, r *http.Request) {
 		}
 		sessionID = parsed
 	}
-	snapshot, err := h.service.Create(r.Context(), sessionID, request.RequiredRuleIDs)
+	snapshot, err := h.service.CreateForPolicy(r.Context(), sessionID, request.PolicyID, h.policyResolver)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -287,6 +301,10 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "evaluation_not_found")
 	case errors.Is(err, pds.ErrConcurrentModification):
 		writeError(w, http.StatusConflict, "concurrent_modification")
+	case errors.Is(err, pds.ErrPolicyResolverRequired):
+		writeError(w, http.StatusServiceUnavailable, "policy_resolver_unavailable")
+	case errors.Is(err, policy.ErrPolicyNotFound):
+		writeError(w, http.StatusNotFound, "active_policy_not_found")
 	case errors.Is(err, evaluation.ErrRequiredRulesIncomplete),
 		errors.Is(err, evaluation.ErrInvalidStateTransition),
 		errors.Is(err, evaluation.ErrRuleOutcomeConflict):
