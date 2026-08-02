@@ -3,7 +3,7 @@
 Status: controlling implementation delta  
 Audited repository: `gostomelv-del/Cargo-OS-PDS`  
 Audited baseline: this change, based on `main` at
-`4873e7c47cbd9f5ddef65ba3780a016c8b94a560`
+`0663e28d541be1afbed436944d4440004a46dac8`
 
 ## 1. Status definitions
 
@@ -36,9 +36,9 @@ Audited baseline: this change, based on `main` at
 | FM-17 | Barometric profile | Research-dependent | Add compensation, floor map, multimodal corroboration |
 | FM-18 | Deterministic Policy execution | Implemented | Production Rule Operators and ordered rule plan |
 | FM-19 | Invalid Evidence fails closed | Implemented for PDS | Rejected/unavailable Evidence blocks execution/completion |
-| FM-20 | Mandatory physical `S_halt` | Missing / Out of PDS scope | Add runtime safety state machine and command interlock |
-| FM-21 | Responsibility retained in halt | Missing | Requires FM-01 and FM-20 |
-| FM-22 | Versioned halt recovery | Missing | Add fresh-Evidence recovery transitions |
+| FM-20 | Mandatory physical `S_halt` | Partial / Out of PDS scope | Deterministic software HALT blocks commits and motion authorization; physical command interlock remains deployment work |
+| FM-21 | Responsibility retained in halt | Implemented for state machine | HALT preserves the last committed Responsibility snapshot and rejects commits |
+| FM-22 | Versioned halt recovery | Implemented for state machine | Recovery requires fresh admissible Evidence with explicit Policy/Evidence versions and exact responsibility binding |
 | FM-23 | Atomic state/outbox persistence | Implemented | Evaluation and Responsibility Unit of Work plus concurrent lease-based delivery |
 | FM-24 | Immutable Decision Trace | Implemented | Snapshot recovery and Evidence Bundle |
 | FM-25 | Exact Policy/Evidence binding | Implemented | Policy Snapshot, objects, Bundle Root |

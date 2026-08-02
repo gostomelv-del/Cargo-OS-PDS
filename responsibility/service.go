@@ -34,8 +34,43 @@ func (service *Service) Transfer(
 	if err != nil {
 		return Snapshot{}, err
 	}
+	return service.transferLoaded(ctx, aggregate, to, transferredAt)
+}
+
+// TransferExpected rejects a handover if responsibility changed after its
+// safety authorization was evaluated.
+func (service *Service) TransferExpected(
+	ctx context.Context,
+	expected Snapshot,
+	to ParticipantID,
+	transferredAt time.Time,
+) (Snapshot, error) {
+	if service == nil || service.repository == nil {
+		return Snapshot{}, ErrRepositoryRequired
+	}
+	validated, err := Rehydrate(expected)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	expected = validated.Snapshot()
+	aggregate, err := service.repository.FindResponsibility(ctx, expected.ObjectID)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	if aggregate.Snapshot() != expected {
+		return Snapshot{}, ErrConcurrentModification
+	}
+	return service.transferLoaded(ctx, aggregate, to, transferredAt)
+}
+
+func (service *Service) transferLoaded(
+	ctx context.Context,
+	aggregate *Aggregate,
+	to ParticipantID,
+	transferredAt time.Time,
+) (Snapshot, error) {
 	expectedVersion := aggregate.Snapshot().Version
-	if err = aggregate.Transfer(to, transferredAt); err != nil {
+	if err := aggregate.Transfer(to, transferredAt); err != nil {
 		return Snapshot{}, err
 	}
 	event, exists := aggregate.PendingTransfer()
@@ -43,7 +78,7 @@ func (service *Service) Transfer(
 		return Snapshot{}, ErrInvalidTransferCommit
 	}
 	snapshot := aggregate.Snapshot()
-	if err = service.repository.CommitTransfer(ctx, snapshot, expectedVersion, event); err != nil {
+	if err := service.repository.CommitTransfer(ctx, snapshot, expectedVersion, event); err != nil {
 		return Snapshot{}, err
 	}
 	aggregate.ClearPendingEvents()

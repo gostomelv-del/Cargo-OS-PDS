@@ -60,7 +60,8 @@ type Aggregate struct {
 	participantID ParticipantID
 	version       uint64
 	assignedAt    time.Time
-	events        []TransferredEvent
+	pendingEvent  TransferredEvent
+	hasPending    bool
 }
 
 // New establishes the mandatory initial responsibility. An Aggregate cannot
@@ -111,7 +112,8 @@ func (aggregate *Aggregate) Transfer(to ParticipantID, transferredAt time.Time) 
 	aggregate.participantID = to
 	aggregate.assignedAt = transferredAt
 	aggregate.version = nextVersion
-	aggregate.events = append(aggregate.events, event)
+	aggregate.pendingEvent = event
+	aggregate.hasPending = true
 	return nil
 }
 
@@ -126,24 +128,25 @@ func (aggregate *Aggregate) Snapshot() Snapshot {
 }
 
 func (aggregate *Aggregate) PendingEvents() []TransferredEvent {
-	if aggregate == nil || len(aggregate.events) == 0 {
+	if aggregate == nil || !aggregate.hasPending {
 		return nil
 	}
-	return append([]TransferredEvent(nil), aggregate.events...)
+	return []TransferredEvent{aggregate.pendingEvent}
 }
 
 // PendingTransfer returns the sole event produced by the latest Transfer
 // without allocating a defensive slice.
 func (aggregate *Aggregate) PendingTransfer() (TransferredEvent, bool) {
-	if aggregate == nil || len(aggregate.events) == 0 {
+	if aggregate == nil || !aggregate.hasPending {
 		return TransferredEvent{}, false
 	}
-	return aggregate.events[len(aggregate.events)-1], true
+	return aggregate.pendingEvent, true
 }
 
 func (aggregate *Aggregate) ClearPendingEvents() {
 	if aggregate != nil {
-		aggregate.events = nil
+		aggregate.pendingEvent = TransferredEvent{}
+		aggregate.hasPending = false
 	}
 }
 
