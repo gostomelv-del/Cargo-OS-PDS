@@ -18,7 +18,7 @@ Audited baseline: this change, based on `main` at
 | ID | Requirement | Status | Current evidence / closure |
 |---|---|---|---|
 | FM-01 | Exactly one responsible Participant per Object | Implemented | Invariant-preserving aggregate plus versioned memory and PostgreSQL repositories reject competing assignments for the same Object |
-| FM-02 | Atomic responsibility handover | Missing / Out of PDS scope | Evaluation atomicity is not physical handover |
+| FM-02 | Atomic responsibility handover | Implemented for responsibility state | Service and memory/PostgreSQL Unit of Work commit the sole assignment with its immutable handover event; physical actuation remains Core Runtime scope |
 | FM-03 | Immutable canonical observation | Implemented | `evidence/object.go`, canonical JSON, integrity, defensive snapshots |
 | FM-04 | Confidence in `[0,1]` | Implemented | Evidence validation and tests |
 | FM-05 | Policy minimum confidence | Implemented | Qualification and Policy compiler |

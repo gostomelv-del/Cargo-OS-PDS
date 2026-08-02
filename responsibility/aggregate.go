@@ -132,6 +132,15 @@ func (aggregate *Aggregate) PendingEvents() []TransferredEvent {
 	return append([]TransferredEvent(nil), aggregate.events...)
 }
 
+// PendingTransfer returns the sole event produced by the latest Transfer
+// without allocating a defensive slice.
+func (aggregate *Aggregate) PendingTransfer() (TransferredEvent, bool) {
+	if aggregate == nil || len(aggregate.events) == 0 {
+		return TransferredEvent{}, false
+	}
+	return aggregate.events[len(aggregate.events)-1], true
+}
+
 func (aggregate *Aggregate) ClearPendingEvents() {
 	if aggregate != nil {
 		aggregate.events = nil

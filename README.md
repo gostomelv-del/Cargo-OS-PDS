@@ -196,8 +196,9 @@ defines typed Physical Object and Participant identities plus a snapshot-backed
 aggregate that always contains one responsible Participant and atomically
 replaces that Participant during a valid transfer. Versioned memory and
 PostgreSQL repositories durably retain the sole assignment and reject stale
-concurrent writers. Atomic audit/outbox persistence, halt-state interlocks,
-and Proof of Handover remain separate increments.
+concurrent writers. The Responsibility service atomically commits each handover
+with an immutable pending delivery event. Outbox dispatch, halt-state
+interlocks, and Proof of Handover remain separate increments.
 
 ## Run the HTTP API
 

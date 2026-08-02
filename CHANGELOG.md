@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Atomic Responsibility handover commits that update the sole assignment and
+  append an immutable delivery event in one memory or PostgreSQL operation.
 - Versioned memory and PostgreSQL Responsibility repositories with optimistic
   concurrency control that permits only one winning assignment per Object.
 - Typed Physical Object and Participant identities with an invariant-preserving
