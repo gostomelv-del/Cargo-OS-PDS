@@ -194,9 +194,10 @@ sensor-fusion, physical halt-state, and Proof-of-Handover work.
 The first Core Runtime domain increment is the `responsibility` package. It
 defines typed Physical Object and Participant identities plus a snapshot-backed
 aggregate that always contains one responsible Participant and atomically
-replaces that Participant during a valid in-memory transfer. Durable
-persistence, concurrency control, halt-state interlocks, and Proof of Handover
-remain separate increments.
+replaces that Participant during a valid transfer. Versioned memory and
+PostgreSQL repositories durably retain the sole assignment and reject stale
+concurrent writers. Atomic audit/outbox persistence, halt-state interlocks,
+and Proof of Handover remain separate increments.
 
 ## Run the HTTP API
 
