@@ -29,6 +29,9 @@ here.
   `timestamp.json` embedding and offline timestamped archive verification.
 - Canonical `signature.json` embedding in deterministic `.coseb` archives and
   one-step offline archive, integrity, Trust Store, and signature verification.
+- Complete immutable Policy Snapshot embedding with canonical document,
+  required-rule plan, effective period, hash rehydration, Decision Trace
+  binding, and portable archive round-trip verification.
 
 ## [0.1.0-alpha] - 2026-07-26
 
