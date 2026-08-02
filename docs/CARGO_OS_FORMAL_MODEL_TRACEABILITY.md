@@ -39,7 +39,7 @@ Audited baseline: this change, based on `main` at
 | FM-20 | Mandatory physical `S_halt` | Missing / Out of PDS scope | Add runtime safety state machine and command interlock |
 | FM-21 | Responsibility retained in halt | Missing | Requires FM-01 and FM-20 |
 | FM-22 | Versioned halt recovery | Missing | Add fresh-Evidence recovery transitions |
-| FM-23 | Atomic state/outbox persistence | Implemented for Evaluation | Reuse Unit of Work pattern for handover |
+| FM-23 | Atomic state/outbox persistence | Implemented | Evaluation and Responsibility Unit of Work plus concurrent lease-based delivery |
 | FM-24 | Immutable Decision Trace | Implemented | Snapshot recovery and Evidence Bundle |
 | FM-25 | Exact Policy/Evidence binding | Implemented | Policy Snapshot, objects, Bundle Root |
 | FM-26 | Independent decision recalculation | Implemented | Offline production-rule replay |

@@ -197,8 +197,10 @@ aggregate that always contains one responsible Participant and atomically
 replaces that Participant during a valid transfer. Versioned memory and
 PostgreSQL repositories durably retain the sole assignment and reject stale
 concurrent writers. The Responsibility service atomically commits each handover
-with an immutable pending delivery event. Outbox dispatch, halt-state
-interlocks, and Proof of Handover remain separate increments.
+with an immutable pending delivery event. PostgreSQL workers claim pending
+events with bounded leases and `SKIP LOCKED`, publish them once, and recover
+expired locks. Halt-state interlocks and Proof of Handover remain separate
+increments.
 
 ## Run the HTTP API
 
