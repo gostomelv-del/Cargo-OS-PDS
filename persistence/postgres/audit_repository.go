@@ -77,6 +77,7 @@ func (s *Store) FindAuditHead(ctx context.Context) (audit.Entry, error) {
 	entry.PreviousRoot = ([32]byte)(previousRoot)
 	entry.RecordRoot = ([32]byte)(recordRoot)
 	entry.Root = ([32]byte)(root)
+	entry.OccurredAt = entry.OccurredAt.UTC()
 	if err = entry.Validate(); err != nil {
 		return audit.Entry{}, err
 	}
