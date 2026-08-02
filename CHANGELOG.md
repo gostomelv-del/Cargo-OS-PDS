@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Versioned memory and PostgreSQL Responsibility repositories with optimistic
+  concurrency control that permits only one winning assignment per Object.
 - Typed Physical Object and Participant identities with an invariant-preserving
   Responsibility aggregate, deterministic transfer, snapshots, domain events,
   and defensive state boundaries.
