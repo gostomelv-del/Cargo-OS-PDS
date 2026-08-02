@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"cargoos/audit"
 	"cargoos/responsibility"
 )
 
@@ -37,6 +38,17 @@ func TestPostgresResponsibilityServiceCommitsSnapshotAndEvent(t *testing.T) {
 		!event.TransferredAt.Equal(transferredAt) {
 		t.Fatalf("unexpected durable handover event: %#v", event)
 	}
+	head, err := store.FindAuditHead(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordRoot, err := responsibility.TransferredEventRoot(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if head.Kind != audit.RecordResponsibilityHandover || head.RecordRoot != recordRoot {
+		t.Fatalf("handover was not bound to audit head: %#v", head)
+	}
 	if _, err = db.ExecContext(ctx, `
 		UPDATE responsibility_handover_events
 		   SET to_participant_id = 'tampered'
@@ -60,12 +72,35 @@ func TestPostgresHandoverEventFailureRollsBackResponsibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	transferredAt := assignedAt.Add(time.Minute)
+	blocker := responsibility.TransferredEvent{
+		ObjectID: objectID, FromParticipantID: "vehicle-7", ToParticipantID: "occupied-event",
+		TransferredAt: transferredAt, Version: 2,
+	}
+	blockerRoot, err := responsibility.TransferredEventRoot(blocker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := store.FindAuditHead(ctx)
+	var auditEntry audit.Entry
+	if errors.Is(err, audit.ErrLedgerEmpty) {
+		auditEntry, err = audit.NewEntry(1, audit.RecordResponsibilityHandover, [32]byte{}, blockerRoot, transferredAt)
+	} else if err == nil {
+		auditEntry, err = audit.NewEntry(
+			head.Sequence+1, audit.RecordResponsibilityHandover, head.Root, blockerRoot, transferredAt,
+		)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = store.AppendAuditEntry(ctx, auditEntry); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = db.ExecContext(ctx, `
 		INSERT INTO responsibility_handover_events (
 			object_id, version, from_participant_id, to_participant_id,
-			transferred_at, delivery_status
-		) VALUES ($1, 2, 'vehicle-7', 'occupied-event', $2, 'PENDING')
-	`, objectID.String(), transferredAt); err != nil {
+			transferred_at, delivery_status, audit_sequence
+		) VALUES ($1, 2, 'vehicle-7', 'occupied-event', $2, 'PENDING', $3)
+	`, objectID.String(), transferredAt, auditEntry.Sequence); err != nil {
 		t.Fatal(err)
 	}
 	service, err := responsibility.NewService(store)
@@ -81,6 +116,13 @@ func TestPostgresHandoverEventFailureRollsBackResponsibility(t *testing.T) {
 	}
 	if stored.Snapshot() != initial {
 		t.Fatalf("failed event append changed responsibility: %#v", stored.Snapshot())
+	}
+	headAfterFailure, err := store.FindAuditHead(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if headAfterFailure.Root != auditEntry.Root || headAfterFailure.Sequence != auditEntry.Sequence {
+		t.Fatalf("failed handover advanced audit ledger: %#v", headAfterFailure)
 	}
 	if _, err = store.FindTransfer(ctx, objectID, 3); !errors.Is(err, responsibility.ErrTransferNotFound) {
 		t.Fatalf("unexpected transfer event after rollback: %v", err)
