@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Deterministic portable handover-proof binding across the responsibility
+  transfer, audit lineage, Evidence Bundle, Policy, and Verification Certificate.
 - Atomic Evidence Bundle Root registration in the common audit ledger without
   storing or traversing a second copy of the portable archive.
 - Atomic Evaluation snapshot, outbox, and audit-ledger commit for every
