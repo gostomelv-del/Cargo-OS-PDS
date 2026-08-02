@@ -7,6 +7,10 @@ here.
 
 ### Added
 
+- Normative Cargo OS Core Runtime mathematical model and implementation
+  traceability matrix separating the current PDS boundary from future
+  responsibility, spatial, probabilistic sensor-fusion, fail-safe halt, and
+  Proof-of-Handover capabilities.
 - Release-readiness audit and explicit reference-MVP security boundary.
 - Non-mutating formatting verification and build checks for every command.
 - Server-controlled CREATED and RUNNING Evaluation timeout policy with
