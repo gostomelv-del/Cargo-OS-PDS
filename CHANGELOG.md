@@ -7,6 +7,9 @@ here.
 
 ### Added
 
+- Allocation-free deterministic spatial admissibility with frame compatibility,
+  confidence, TTL/future tolerance, overflow-safe proximity, floor consistency,
+  covariance bounds, and a compact failure bitmask.
 - Allocation-free 3D spatial estimate contracts with declared coordinate
   frame, floor, confidence, versioned estimator/calibration metadata, compact
   covariance, finite-number checks, and positive-semidefinite validation.

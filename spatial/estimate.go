@@ -8,13 +8,14 @@ import (
 )
 
 var (
-	ErrFrameRequired       = errors.New("spatial: coordinate frame is required")
-	ErrNonFiniteValue      = errors.New("spatial: value must be finite")
-	ErrInvalidCovariance   = errors.New("spatial: covariance must be positive semidefinite")
-	ErrConfidenceRange     = errors.New("spatial: confidence must be in [0,1]")
-	ErrObservedAtRequired  = errors.New("spatial: observation time is required")
-	ErrProfileRequired     = errors.New("spatial: estimator profile and version are required")
-	ErrCalibrationRequired = errors.New("spatial: calibration version is required")
+	ErrFrameRequired        = errors.New("spatial: coordinate frame is required")
+	ErrNonFiniteValue       = errors.New("spatial: value must be finite")
+	ErrInvalidCovariance    = errors.New("spatial: covariance must be positive semidefinite")
+	ErrConfidenceRange      = errors.New("spatial: confidence must be in [0,1]")
+	ErrObservedAtRequired   = errors.New("spatial: observation time is required")
+	ErrProfileRequired      = errors.New("spatial: estimator profile and version are required")
+	ErrCalibrationRequired  = errors.New("spatial: calibration version is required")
+	ErrNonCanonicalEstimate = errors.New("spatial: estimate is not canonical")
 )
 
 type FrameID string
@@ -150,6 +151,22 @@ func NewEstimate(input EstimateInput) (Estimate, error) {
 		ObservedAt: input.ObservedAt.UTC(), ProfileID: input.ProfileID,
 		ProfileVersion: input.ProfileVersion, CalibrationVersion: input.CalibrationVersion,
 	}, nil
+}
+
+func (estimate Estimate) Validate() error {
+	normalized, err := NewEstimate(EstimateInput{
+		Frame: estimate.Frame, Position: estimate.Position, Floor: estimate.Floor,
+		Covariance: estimate.Covariance, Confidence: estimate.Confidence,
+		ObservedAt: estimate.ObservedAt, ProfileID: estimate.ProfileID,
+		ProfileVersion: estimate.ProfileVersion, CalibrationVersion: estimate.CalibrationVersion,
+	})
+	if err != nil {
+		return err
+	}
+	if normalized != estimate {
+		return ErrNonCanonicalEstimate
+	}
+	return nil
 }
 
 func finite(value float64) bool {
