@@ -212,7 +212,9 @@ root to the common audit ledger in the same transaction as the sole assignment
 and immutable event. A fixed-value portable proof binding joins that event and
 its exact audit lineage to an Evidence Bundle, Policy, and signed Verification
 Certificate without copying or traversing the archive. Participant signatures
-and independent portable handover verification remain separate increments.
+use two fixed outgoing/incoming roles, trusted Ed25519 keys, and exact
+Participant-to-signer identity matching. Independent portable handover
+verification remains a separate increment.
 
 The `safety` package adds deterministic `IDLE`, `PROPOSED`, `VERIFIED`,
 `COMMITTED`, `REJECTED`, and `HALT` protocol states. Invalid, expired, or
