@@ -8,7 +8,7 @@ PDS_DATABASE_URL="$DATABASE_URL" go run ./cmd/pds-migrate
 
 migration_count="$(psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
     "SELECT COUNT(*) FROM cargoos_schema_migrations;")"
-test "$migration_count" = "13"
+test "$migration_count" = "14"
 
 go test ./persistence/postgres -run TestPostgres -count=1
 
@@ -122,10 +122,10 @@ tables="$(psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c "
            'evidence_objects', 'policy_versions', 'policy_lifecycle_events',
            'trusted_verification_keys', 'trust_key_revocations',
            'responsibility_snapshots', 'responsibility_handover_events',
-           'estimator_results', 'audit_ledger'
+           'estimator_results', 'audit_ledger', 'evaluation_audit_records'
        );
 ")"
-test "$tables" = "12"
+test "$tables" = "13"
 
 evidence_id="00000000-0000-4000-8000-000000000021"
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "

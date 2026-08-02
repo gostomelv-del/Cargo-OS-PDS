@@ -158,7 +158,10 @@ record.
 Policy-bound Evaluation creation resolves the active immutable policy at the
 creation timestamp, derives the ordered required-rule plan only from that
 policy, binds its exact identity and hash, and persists the aggregate and outbox
-events once. No unbound or client-defined intermediate Evaluation is stored.
+events once. Every persisted Evaluation version atomically appends the SHA-256
+root of its exact snapshot bytes to the common audit ledger. Failed outbox
+persistence rolls back the snapshot, version binding, and audit head together.
+No unbound or client-defined intermediate Evaluation is stored.
 
 ## Requirements
 
@@ -243,10 +246,9 @@ The `audit` package defines a domain-separated SHA-256 chain entry that binds
 one typed record root, a monotonic sequence, occurrence time, and the exact
 previous ledger root. PostgreSQL serializes appends, rejects stale heads and
 forks at both repository and schema boundaries, and forbids update or deletion
-of committed entries. Atomic attachment of Evaluation, estimator, and handover
-transactions to this common ledger remains a separate integration increment.
-Estimator-result and responsibility-handover transactions are now attached
-atomically; Evaluation and Evidence Bundle attachment remain separate.
+of committed entries. Evaluation, estimator-result, and
+responsibility-handover transactions are attached atomically; Evidence Bundle
+attachment remains separate.
 
 ## Run the HTTP API
 

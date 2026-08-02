@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"cargoos/audit"
 	"cargoos/evaluation"
 	"cargoos/migrations"
 	"cargoos/pds"
@@ -148,6 +150,17 @@ func TestPostgresSaveEvaluationRollsBackSnapshotWhenOutboxFails(t *testing.T) {
 	if err = store.SaveEvaluation(ctx, created, 0, createdRecords); err != nil {
 		t.Fatal(err)
 	}
+	createdHead, err := store.FindAuditHead(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createdPayload, err := encodeSnapshot(created)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if createdHead.Kind != audit.RecordEvaluation || createdHead.RecordRoot != sha256.Sum256(createdPayload) {
+		t.Fatalf("created Evaluation was not bound to audit head: %#v", createdHead)
+	}
 	aggregate.ClearDomainEvents()
 
 	if err = aggregate.Start(base.Add(time.Second)); err != nil {
@@ -165,6 +178,13 @@ func TestPostgresSaveEvaluationRollsBackSnapshotWhenOutboxFails(t *testing.T) {
 	startedRecords[0].Payload = []byte("{")
 	if err = store.SaveEvaluation(ctx, running, created.Version, startedRecords); !errors.Is(err, ErrInvalidOutboxRecord) {
 		t.Fatalf("expected outbox validation failure, got %v", err)
+	}
+	headAfterFailure, err := store.FindAuditHead(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if headAfterFailure.Sequence != createdHead.Sequence || headAfterFailure.Root != createdHead.Root {
+		t.Fatalf("failed Evaluation save advanced audit ledger: %#v", headAfterFailure)
 	}
 
 	recovered, err := store.FindEvaluation(ctx, created.EvaluationID)
@@ -191,6 +211,20 @@ func TestPostgresSaveEvaluationRollsBackSnapshotWhenOutboxFails(t *testing.T) {
 
 	if err = store.SaveEvaluation(ctx, running, created.Version, validStartedRecords); err != nil {
 		t.Fatalf("retry after rollback failed: %v", err)
+	}
+	runningHead, err := store.FindAuditHead(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runningPayload, err := encodeSnapshot(running)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runningHead.Sequence != createdHead.Sequence+1 ||
+		runningHead.PreviousRoot != createdHead.Root ||
+		runningHead.Kind != audit.RecordEvaluation ||
+		runningHead.RecordRoot != sha256.Sum256(runningPayload) {
+		t.Fatalf("running Evaluation audit binding is invalid: %#v", runningHead)
 	}
 	recovered, err = store.FindEvaluation(ctx, created.EvaluationID)
 	if err != nil {
