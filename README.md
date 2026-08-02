@@ -97,7 +97,13 @@ payloads are designed for external signers; private keys are not retained by
 PDS. A successfully verified bundle can be exported with its canonical
 `signature.json` envelope inside the deterministic `.coseb` layout. Signed
 archive import validates the entire archive and trusted signature in one
-offline operation. A trusted timestamp remains separate work.
+offline operation. A trusted timestamp authority can additionally bind the
+exact canonical signature, Bundle Root, serial number, and issuance time in a
+canonical `timestamp.json`. Timestamped `.coseb` archives are deterministic and
+can verify the bundle signer at the trusted issuance time and the timestamp
+authority through a separate Trust Store. Full Policy Snapshot embedding,
+attachments, reports, and independent decision recalculation remain separate
+work.
 The in-memory Policy Registry stores immutable canonical policy versions,
 rejects overlapping effective periods, and resolves exactly one version at the
 Evaluation creation time. Resolution binds the resulting policy identity and

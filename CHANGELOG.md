@@ -24,6 +24,9 @@ here.
 - Domain-separated Ed25519 Evidence Bundle signatures binding the canonical
   manifest hash and Bundle Root to an explicit signer, trusted key, algorithm,
   and signing time with key validity and revocation enforcement.
+- Trusted timestamp authority envelopes binding the exact bundle signature,
+  Bundle Root, serial number, and issuance time, with deterministic
+  `timestamp.json` embedding and offline timestamped archive verification.
 - Canonical `signature.json` embedding in deterministic `.coseb` archives and
   one-step offline archive, integrity, Trust Store, and signature verification.
 
