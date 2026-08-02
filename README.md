@@ -184,6 +184,13 @@ trusted development or integration network. See
 [`docs/MVP_RELEASE_READINESS.md`](docs/MVP_RELEASE_READINESS.md) for the audited
 boundary and remaining production work.
 
+The future Cargo OS Core Runtime safety semantics are defined separately in
+[`docs/CARGO_OS_FORMAL_RUNTIME_MODEL.md`](docs/CARGO_OS_FORMAL_RUNTIME_MODEL.md).
+Its
+[`implementation traceability matrix`](docs/CARGO_OS_FORMAL_MODEL_TRACEABILITY.md)
+distinguishes current PDS coverage from missing responsibility, spatial,
+sensor-fusion, physical halt-state, and Proof-of-Handover work.
+
 ## Run the HTTP API
 
 For a local, non-durable demonstration:
