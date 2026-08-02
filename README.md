@@ -236,6 +236,13 @@ an immutable `(ObjectID, sequence)` record, rejects duplicate execution, and
 revalidates the complete replay binding when loading it. No filter
 implementation is embedded in PDS.
 
+The `audit` package defines a domain-separated SHA-256 chain entry that binds
+one typed record root, a monotonic sequence, occurrence time, and the exact
+previous ledger root. PostgreSQL serializes appends, rejects stale heads and
+forks at both repository and schema boundaries, and forbids update or deletion
+of committed entries. Atomic attachment of Evaluation, estimator, and handover
+transactions to this common ledger remains a separate integration increment.
+
 ## Run the HTTP API
 
 For a local, non-durable demonstration:
