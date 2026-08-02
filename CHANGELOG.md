@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Atomic Evaluation snapshot, outbox, and audit-ledger commit for every
+  aggregate version, with load-time typed-root verification.
 - Atomic responsibility handover and audit-ledger commit with a deterministic
   typed root binding Object, before/after Participants, version, and time.
 - Atomic estimator-result and audit-ledger commit with a typed SHA-256 record

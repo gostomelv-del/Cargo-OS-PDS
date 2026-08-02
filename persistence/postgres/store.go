@@ -2,13 +2,16 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
+	"cargoos/audit"
 	"cargoos/evaluation"
 	"cargoos/pds"
 )
@@ -19,6 +22,7 @@ var (
 	ErrEvaluationConcurrentModification = pds.ErrConcurrentModification
 	ErrInvalidExpectedVersion           = errors.New("postgres: invalid expected version")
 	ErrInvalidOutboxRecord              = errors.New("postgres: invalid outbox record")
+	ErrEvaluationAuditInvalid           = errors.New("postgres: evaluation audit binding is invalid")
 )
 
 type Store struct {
@@ -50,7 +54,7 @@ func (s *Store) SaveEvaluation(
 	if expectedVersion > 0 && snapshot.Version <= expectedVersion {
 		return ErrInvalidExpectedVersion
 	}
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return fmt.Errorf("postgres: begin evaluation transaction: %w", err)
 	}
@@ -59,6 +63,24 @@ func (s *Store) SaveEvaluation(
 	if err = persistSnapshot(ctx, tx, snapshot, expectedVersion, payload); err != nil {
 		return err
 	}
+	if err = lockAuditLedger(ctx, tx); err != nil {
+		return err
+	}
+	entry, err := nextAuditEntryLocked(
+		ctx, tx, audit.RecordEvaluation, sha256.Sum256(payload), evaluationOccurredAt(snapshot),
+	)
+	if err != nil {
+		return err
+	}
+	if err = insertAuditEntry(ctx, tx, entry); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `
+		INSERT INTO evaluation_audit_records (evaluation_id, version, audit_sequence)
+		VALUES ($1, $2, $3)
+	`, snapshot.EvaluationID.String(), snapshot.Version, entry.Sequence); err != nil {
+		return fmt.Errorf("postgres: bind evaluation audit entry: %w", err)
+	}
 	if err = insertOutboxRecords(ctx, tx, records); err != nil {
 		return err
 	}
@@ -66,6 +88,21 @@ func (s *Store) SaveEvaluation(
 		return fmt.Errorf("postgres: commit evaluation transaction: %w", err)
 	}
 	return nil
+}
+
+func evaluationOccurredAt(snapshot evaluation.EvaluationSnapshot) time.Time {
+	switch snapshot.State {
+	case evaluation.StateRunning:
+		return *snapshot.StartedAt
+	case evaluation.StateCompleted:
+		return *snapshot.CompletedAt
+	case evaluation.StateCancelled:
+		return *snapshot.CancelledAt
+	case evaluation.StateExpired:
+		return *snapshot.ExpiredAt
+	default:
+		return snapshot.CreatedAt
+	}
 }
 
 func persistSnapshot(
@@ -155,16 +192,26 @@ func (s *Store) FindEvaluation(ctx context.Context, id uuid.UUID) (*evaluation.E
 	if id == uuid.Nil {
 		return nil, evaluation.ErrEvaluationIDRequired
 	}
-	var payload []byte
+	var payload, recordRoot []byte
+	var kind sql.NullInt64
 	err := s.db.QueryRowContext(ctx,
-		`SELECT snapshot FROM evaluations WHERE evaluation_id = $1`,
+		`SELECT e.snapshot, al.record_kind, al.record_root
+		   FROM evaluations e
+		   LEFT JOIN evaluation_audit_records ar
+		     ON ar.evaluation_id = e.evaluation_id AND ar.version = e.version
+		   LEFT JOIN audit_ledger al ON al.sequence = ar.audit_sequence
+		  WHERE e.evaluation_id = $1`,
 		id.String(),
-	).Scan(&payload)
+	).Scan(&payload, &kind, &recordRoot)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrEvaluationNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("postgres: find evaluation: %w", err)
+	}
+	if !kind.Valid || audit.RecordKind(kind.Int64) != audit.RecordEvaluation ||
+		len(recordRoot) != 32 || sha256.Sum256(payload) != ([32]byte)(recordRoot) {
+		return nil, ErrEvaluationAuditInvalid
 	}
 	return decodeSnapshot(payload)
 }
