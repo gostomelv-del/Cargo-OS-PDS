@@ -209,7 +209,10 @@ events with bounded leases and `SKIP LOCKED`, publish them once, and recover
 expired locks. Each PostgreSQL handover now hashes its exact Object,
 before/after Participants, version, and transfer time and commits that typed
 root to the common audit ledger in the same transaction as the sole assignment
-and immutable event. Physical Proof of Handover remains a separate increment.
+and immutable event. A fixed-value portable proof binding joins that event and
+its exact audit lineage to an Evidence Bundle, Policy, and signed Verification
+Certificate without copying or traversing the archive. Participant signatures
+and independent portable handover verification remain separate increments.
 
 The `safety` package adds deterministic `IDLE`, `PROPOSED`, `VERIFIED`,
 `COMMITTED`, `REJECTED`, and `HALT` protocol states. Invalid, expired, or
