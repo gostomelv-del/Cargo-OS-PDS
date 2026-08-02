@@ -104,6 +104,13 @@ can verify the bundle signer at the trusted issuance time and the timestamp
 authority through a separate Trust Store. Full Policy Snapshot embedding,
 attachments, reports, and independent decision recalculation remain separate
 work.
+The complete Evidence Bundle build path embeds the immutable canonical Policy
+Version as `policy/snapshot.json` instead of a reference alone. It rehydrates
+the Policy through the domain model, requires its ID, version, and calculated
+hash to match the final Decision Trace binding, and places the exact snapshot
+under the Bundle Root. Reference-only bundle construction remains available for
+backward compatibility. Independent Rule Outcome recalculation remains
+separate work.
 The in-memory Policy Registry stores immutable canonical policy versions,
 rejects overlapping effective periods, and resolves exactly one version at the
 Evaluation creation time. Resolution binds the resulting policy identity and
