@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Unified domain-separated audit hash-chain contract and immutable PostgreSQL
+  ledger with serialized append, previous-root continuity, and fork rejection.
 - Immutable PostgreSQL estimator-result recording keyed by Physical Object and
   sequence, with duplicate rejection and complete replay validation on load.
 - Versioned estimator plug-in port with immutable Observation/digest binding,
