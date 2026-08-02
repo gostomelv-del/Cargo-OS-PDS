@@ -17,15 +17,15 @@ var ErrHandoverVerificationTime = errors.New("responsibility: handover verificat
 // PortableHandoverProof contains every artifact required to verify a physical
 // Responsibility Transfer without consulting mutable runtime state.
 type PortableHandoverProof struct {
-	ProofID            uuid.UUID
-	Transfer           TransferredEvent
-	AuditEntry         audit.Entry
-	Bundle             evidencebundle.Bundle
-	BundleSignature    evidencebundle.Signature
-	Timestamp          evidencebundle.TrustedTimestamp
-	Certificate        evidencebundle.VerificationCertificate
-	OutgoingSignature  HandoverProofSignature
-	IncomingSignature  HandoverProofSignature
+	ProofID           uuid.UUID
+	Transfer          TransferredEvent
+	AuditEntry        audit.Entry
+	Bundle            evidencebundle.Bundle
+	BundleSignature   evidencebundle.Signature
+	Timestamp         evidencebundle.TrustedTimestamp
+	Certificate       evidencebundle.VerificationCertificate
+	OutgoingSignature HandoverProofSignature
+	IncomingSignature HandoverProofSignature
 }
 
 // VerifiedPortableHandoverProof is returned only after every cryptographic,
