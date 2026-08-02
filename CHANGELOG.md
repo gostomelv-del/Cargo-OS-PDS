@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Atomic estimator-result and audit-ledger commit with a typed SHA-256 record
+  root, rollback-safe duplicate rejection, and binding verification on load.
 - Unified domain-separated audit hash-chain contract and immutable PostgreSQL
   ledger with serialized append, previous-root continuity, and fork rejection.
 - Immutable PostgreSQL estimator-result recording keyed by Physical Object and
