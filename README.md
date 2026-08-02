@@ -227,6 +227,13 @@ limits step count and elapsed time, requires estimator/calibration continuity,
 and fails closed on stale, future, low-confidence, or numerically overflowing
 state. Production evaluation is scalar and allocation-free.
 
+The `estimator` package is the hardware- and algorithm-neutral plug-in boundary
+for recursive sensor fusion. Each single-observation request binds one Physical
+Object, sequence, immutable Observation UUID/digest, optional prior Estimate,
+target frame, and exact profile/calibration versions. Outputs are revalidated
+and returned with fixed-value replay metadata; no filter implementation is
+embedded in PDS.
+
 ## Run the HTTP API
 
 For a local, non-durable demonstration:

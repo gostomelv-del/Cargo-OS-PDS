@@ -3,7 +3,7 @@
 Status: controlling implementation delta  
 Audited repository: `gostomelv-del/Cargo-OS-PDS`  
 Audited baseline: this change, based on `main` at
-`ae4002c98e1a749ca6ae1ee9bdeab1ecb6089a70`
+`1a341e1cd0bae30adb59d02a24f32035c5c8666e`
 
 ## 1. Status definitions
 
@@ -29,7 +29,7 @@ Audited baseline: this change, based on `main` at
 | FM-10 | Proximity `d <= d_max` | Implemented contract | Frame-compatible overflow-safe Euclidean proximity with exact boundary tests and deterministic failure mask |
 | FM-11 | Discrete floor consistency | Implemented contract | Same-floor interaction plus version-continuous, Policy-calibrated `Δfloor`/`ΔZ`, confidence, timing, and bounded-step transition operator; hardware calibration remains profile validation |
 | FM-12 | Covariance/bounded uncertainty | Implemented contract | Compact symmetric 3x3 covariance with finite and positive-semidefinite validation |
-| FM-13 | Bayesian estimator interface | Missing / Out of PDS scope | Define versioned estimator port and output snapshot |
+| FM-13 | Bayesian estimator interface | Implemented contract | Algorithm-neutral single-observation recursive port binds prior Estimate, immutable Observation digest, target frame, and exact profile/calibration versions |
 | FM-14 | Gaussian filter profile | Research-dependent | Calibrate models and matrices; validate datasets |
 | FM-15 | Particle filter profile | Research-dependent | Define likelihood, ESS, resampling, replay, benchmarks |
 | FM-16 | Wi-Fi/BLE profile | Research-dependent | Add device/environment calibration and acceptance tests |
@@ -47,7 +47,7 @@ Audited baseline: this change, based on `main` at
 | FM-28 | Signed Verification Certificate | Implemented | Canonical machine-readable certificate |
 | FM-29 | Proof of Handover | Missing / Out of PDS scope | Bind physical before/after responsibility and transaction root |
 | FM-30 | Unified append-only hash chain | Partial | Immutable records and roots exist; `previousRoot` ledger does not |
-| FM-31 | Deterministic estimator replay | Partial | Decision replay exists; estimator metadata does not |
+| FM-31 | Deterministic estimator replay | Partial | Exact fixed-value replay metadata now exists; durable estimator result recording and profile execution remain |
 | FM-32 | Matrix/NaN/infinity validation | Implemented for spatial contract | Position, confidence, and covariance reject NaN/infinity; normalized PSD checks avoid determinant overflow |
 
 ## 3. Existing executable foundation
