@@ -4,6 +4,12 @@ Status: normative architecture model; partially implemented
 Version: 1.0.0-draft  
 Date: 2026-08-02
 
+Source basis: *Cargo OS Formal Mathematical Model v1.0*, supplied by Vladimir
+Gostomelskii on 2026-08-02. This repository document translates that
+implementation-independent model into testable runtime obligations without
+changing its responsibility, verification, authorization, atomicity, history,
+or determinism semantics.
+
 ## 1. Scope and conformance boundary
 
 This document defines the formal safety and Evidence semantics for the future
@@ -299,3 +305,20 @@ fingerprinting, and barometric altitude estimation are general frameworks.
 This specification does not attribute a formula to a named researcher without
 a precise bibliographic source. Project use of publications MUST record exact
 references, assumptions, licenses, and engineering deviations separately.
+
+## 12. Canonical semantic dependency
+
+Implementations MUST preserve this observable dependency order:
+
+1. authenticated observation;
+2. immutable Evidence commitment;
+3. deterministic Evidence verification;
+4. computable admissibility and authorization;
+5. atomic responsibility commitment;
+6. exactly one Proof of Handover;
+7. immutable Responsibility History extension.
+
+Evidence alone never authorizes a transfer. Responsibility changes only at
+atomic commitment, and a Proof of Handover exists only for a successfully
+committed transfer. Failure at any earlier stage preserves the last committed
+responsible Participant.
