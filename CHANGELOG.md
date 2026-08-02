@@ -7,6 +7,9 @@ here.
 
 ### Added
 
+- Allocation-free 3D spatial estimate contracts with declared coordinate
+  frame, floor, confidence, versioned estimator/calibration metadata, compact
+  covariance, finite-number checks, and positive-semidefinite validation.
 - Deterministic Responsibility safety state machine with fail-safe HALT,
   retained responsibility, fresh versioned-Evidence recovery, and stale
   authorization rejection.

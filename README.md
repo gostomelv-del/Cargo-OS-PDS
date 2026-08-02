@@ -209,6 +209,12 @@ Participant and rejects handover commits, and recovery requires fresh
 admissible Evidence bound to explicit Policy and Evidence versions. A physical
 motion interlock adapter remains deployment-specific Core Runtime work.
 
+The `spatial` package defines the estimator-output boundary without selecting a
+sensor-fusion algorithm: a declared coordinate frame, finite 3D position,
+discrete floor, confidence, observation time, estimator/calibration versions,
+and a compact symmetric positive-semidefinite covariance. Its production
+validation uses fixed scalar fields with no heap-backed matrix rows or loops.
+
 ## Run the HTTP API
 
 For a local, non-durable demonstration:
