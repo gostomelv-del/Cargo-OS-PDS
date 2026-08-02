@@ -35,6 +35,9 @@ here.
 - Fail-closed independent offline decision verification using the embedded
   Policy Snapshot, exact Evidence Objects, production Rule Operator compiler,
   recalculated Rule Outcomes, and independently derived final result.
+- Canonical externally signed Verification Certificates binding the Bundle
+  Root, trusted timestamp, Policy, stored and recalculated results, and exact
+  independently reproduced Rule Outcomes.
 
 ## [0.1.0-alpha] - 2026-07-26
 

@@ -77,15 +77,13 @@ func VerifyDecision(ctx context.Context, bundle Bundle) (IndependentVerification
 		return IndependentVerificationReport{}, err
 	}
 
-	stored := make(map[string]evaluation.RuleOutcome, len(trace.RuleOutcomes))
-	for _, outcome := range trace.RuleOutcomes {
-		if _, duplicate := stored[outcome.RuleID]; duplicate {
+	recalculated := make([]RecalculatedOutcome, 0, len(trace.RequiredRuleIDs))
+	result := evaluation.ResultVerified
+	for index, ruleID := range trace.RequiredRuleIDs {
+		expected := trace.RuleOutcomes[index]
+		if expected.RuleID != ruleID {
 			return IndependentVerificationReport{}, ErrIndependentVerificationFailed
 		}
-		stored[outcome.RuleID] = outcome
-	}
-	recalculated := make([]RecalculatedOutcome, 0, len(trace.RequiredRuleIDs))
-	for _, ruleID := range trace.RequiredRuleIDs {
 		operator, compileErr := compiler.CompileRule(ctx, version, ruleID)
 		if compileErr != nil {
 			return IndependentVerificationReport{}, compileErr
@@ -100,12 +98,11 @@ func VerifyDecision(ctx context.Context, bundle Bundle) (IndependentVerification
 		}
 		outcome := RecalculatedOutcome{RuleID: ruleID, Status: decision.Status, ReasonCodes: append([]evaluation.ReasonCode(nil), decision.ReasonCodes...)}
 		recalculated = append(recalculated, outcome)
-		expected, exists := stored[ruleID]
-		if !exists || expected.Status != outcome.Status || !sameReasonCodes(expected.ReasonCodes, outcome.ReasonCodes) {
+		if expected.Status != outcome.Status || !sameReasonCodes(expected.ReasonCodes, outcome.ReasonCodes) {
 			return IndependentVerificationReport{}, fmt.Errorf("%w: %s", ErrRecalculatedOutcomeMismatch, ruleID)
 		}
+		result = updateVerificationResult(result, outcome.Status)
 	}
-	result := deriveVerificationResult(recalculated)
 	if result != trace.Result {
 		return IndependentVerificationReport{}, fmt.Errorf("%w: stored=%s recalculated=%s", ErrRecalculatedDecisionMismatch, trace.Result, result)
 	}
@@ -119,7 +116,7 @@ func VerifyDecision(ctx context.Context, bundle Bundle) (IndependentVerification
 func verificationInputs(bundle Bundle) (evaluation.DecisionTrace, []evidence.Snapshot, error) {
 	var trace evaluation.DecisionTrace
 	var traceFound bool
-	evidenceSnapshots := make([]evidence.Snapshot, 0)
+	byID := make(map[uuid.UUID]evidence.Snapshot, len(bundle.Objects))
 	for _, object := range bundle.Objects {
 		switch {
 		case object.Path == "decision-trace.json":
@@ -136,24 +133,18 @@ func verificationInputs(bundle Bundle) (evaluation.DecisionTrace, []evidence.Sna
 			if err != nil {
 				return evaluation.DecisionTrace{}, nil, err
 			}
-			evidenceSnapshots = append(evidenceSnapshots, rehydrated.Snapshot())
+			snapshot = rehydrated.Snapshot()
+			if _, duplicate := byID[snapshot.EvidenceID]; duplicate {
+				return evaluation.DecisionTrace{}, nil, ErrEvidenceObjectMismatch
+			}
+			byID[snapshot.EvidenceID] = snapshot
 		}
 	}
-	if !traceFound || trace.EvidenceBinding == nil || len(evidenceSnapshots) != len(trace.EvidenceBinding.Evidence) {
+	if !traceFound || trace.EvidenceBinding == nil || len(byID) != len(trace.EvidenceBinding.Evidence) {
 		return evaluation.DecisionTrace{}, nil, ErrDecisionTraceRequired
 	}
-	byID := make(map[uuid.UUID]evidence.Snapshot, len(evidenceSnapshots))
-	for _, snapshot := range evidenceSnapshots {
-		if snapshot.SessionID != trace.SessionID {
-			return evaluation.DecisionTrace{}, nil, ErrEvidenceObjectMismatch
-		}
-		if _, duplicate := byID[snapshot.EvidenceID]; duplicate {
-			return evaluation.DecisionTrace{}, nil, ErrEvidenceObjectMismatch
-		}
-		byID[snapshot.EvidenceID] = snapshot
-	}
-	ordered := make([]evidence.Snapshot, 0, len(trace.EvidenceBinding.Evidence))
-	for _, reference := range trace.EvidenceBinding.Evidence {
+	ordered := make([]evidence.Snapshot, len(trace.EvidenceBinding.Evidence))
+	for index, reference := range trace.EvidenceBinding.Evidence {
 		if reference.Status != evaluation.EvidenceQualified {
 			return evaluation.DecisionTrace{}, nil, ErrIndependentVerificationScope
 		}
@@ -161,7 +152,10 @@ func verificationInputs(bundle Bundle) (evaluation.DecisionTrace, []evidence.Sna
 		if !exists {
 			return evaluation.DecisionTrace{}, nil, ErrEvidenceObjectMismatch
 		}
-		ordered = append(ordered, snapshot)
+		if snapshot.SessionID != trace.SessionID {
+			return evaluation.DecisionTrace{}, nil, ErrEvidenceObjectMismatch
+		}
+		ordered[index] = snapshot
 		delete(byID, reference.EvidenceID)
 	}
 	if len(byID) != 0 {
@@ -173,26 +167,33 @@ func verificationInputs(bundle Bundle) (evaluation.DecisionTrace, []evidence.Sna
 func copyEvidenceForVerification(source []evidence.Snapshot) []evidence.Snapshot {
 	result := make([]evidence.Snapshot, len(source))
 	for index, snapshot := range source {
-		object, _ := evidence.Rehydrate(snapshot)
-		result[index] = object.Snapshot()
+		result[index] = snapshot
+		result[index].Payload = append(json.RawMessage(nil), snapshot.Payload...)
+		if snapshot.Confidence != nil {
+			confidence := *snapshot.Confidence
+			result[index].Confidence = &confidence
+		}
+		if snapshot.Provenance != nil {
+			result[index].Provenance = make(map[string]string, len(snapshot.Provenance))
+			for key, value := range snapshot.Provenance {
+				result[index].Provenance[key] = value
+			}
+		}
 	}
 	return result
 }
 
-func deriveVerificationResult(outcomes []RecalculatedOutcome) evaluation.VerificationResult {
-	result := evaluation.ResultVerified
-	for _, outcome := range outcomes {
-		switch outcome.Status {
-		case evaluation.RuleOutcomeFail:
-			result = evaluation.ResultRejected
-		case evaluation.RuleOutcomeInconclusive:
-			if result != evaluation.ResultRejected {
-				result = evaluation.ResultManualReview
-			}
-		case evaluation.RuleOutcomeWarning:
-			if result == evaluation.ResultVerified {
-				result = evaluation.ResultVerifiedWithException
-			}
+func updateVerificationResult(result evaluation.VerificationResult, status evaluation.RuleOutcomeStatus) evaluation.VerificationResult {
+	switch status {
+	case evaluation.RuleOutcomeFail:
+		return evaluation.ResultRejected
+	case evaluation.RuleOutcomeInconclusive:
+		if result != evaluation.ResultRejected {
+			return evaluation.ResultManualReview
+		}
+	case evaluation.RuleOutcomeWarning:
+		if result == evaluation.ResultVerified {
+			return evaluation.ResultVerifiedWithException
 		}
 	}
 	return result

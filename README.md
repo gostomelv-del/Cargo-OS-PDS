@@ -117,6 +117,12 @@ compares status and reason codes with the stored Rule Outcomes, independently
 derives the final verification result, and returns an auditable verification
 report. Expired and otherwise non-completed decisions remain outside this
 initial recalculation profile.
+Successful independent verification can be represented as a canonical,
+externally signed Verification Certificate. The certificate binds its identity,
+Bundle ID and Root, Evaluation, exact Policy reference, trusted timestamp,
+stored and recalculated result, and every recalculated Rule Outcome. Certificate
+verification repeats the independent decision calculation and validates the
+verifier key through the Trust Store; verifier private keys remain outside PDS.
 The in-memory Policy Registry stores immutable canonical policy versions,
 rejects overlapping effective periods, and resolves exactly one version at the
 Evaluation creation time. Resolution binds the resulting policy identity and
