@@ -23,6 +23,7 @@ var (
 	ErrPortRequired        = errors.New("estimator: port is required")
 	ErrOutputBinding       = errors.New("estimator: output does not match request")
 	ErrCompletionTime      = errors.New("estimator: completion time is invalid")
+	ErrResultInvalid       = errors.New("estimator: result and replay metadata are inconsistent")
 )
 
 type Request struct {
@@ -103,6 +104,31 @@ type Result struct {
 	Replay   ReplayMetadata
 }
 
+func (result Result) Validate() error {
+	request := Request{
+		ObjectID: result.Replay.ObjectID, Sequence: result.Replay.Sequence,
+		ObservationID: result.Replay.ObservationID, ObservationDigest: result.Replay.ObservationDigest,
+		ObservedAt: result.Replay.ObservedAt, ReceivedAt: result.Replay.ReceivedAt,
+		TargetFrame: result.Replay.TargetFrame, ProfileID: result.Replay.ProfileID,
+		ProfileVersion:     result.Replay.ProfileVersion,
+		CalibrationVersion: result.Replay.CalibrationVersion,
+		HasPrior:           result.Replay.HasPrior, Prior: result.Replay.Prior,
+	}
+	if err := request.Validate(); err != nil || result.Replay.CompletedAt.IsZero() ||
+		result.Replay.CompletedAt.Before(result.Replay.ReceivedAt) {
+		return ErrResultInvalid
+	}
+	if err := result.Estimate.Validate(); err != nil ||
+		result.Estimate.Frame != request.TargetFrame ||
+		result.Estimate.ObservedAt != request.ObservedAt.UTC() ||
+		result.Estimate.ProfileID != request.ProfileID ||
+		result.Estimate.ProfileVersion != request.ProfileVersion ||
+		result.Estimate.CalibrationVersion != request.CalibrationVersion {
+		return ErrResultInvalid
+	}
+	return nil
+}
+
 func Execute(
 	ctx context.Context,
 	port Port,
@@ -141,5 +167,9 @@ func Execute(
 	if request.HasPrior {
 		metadata.Prior = request.Prior
 	}
-	return Result{Estimate: estimate, Replay: metadata}, nil
+	result := Result{Estimate: estimate, Replay: metadata}
+	if err = result.Validate(); err != nil {
+		return Result{}, err
+	}
+	return result, nil
 }

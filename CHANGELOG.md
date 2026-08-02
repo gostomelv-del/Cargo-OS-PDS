@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Immutable PostgreSQL estimator-result recording keyed by Physical Object and
+  sequence, with duplicate rejection and complete replay validation on load.
 - Versioned estimator plug-in port with immutable Observation/digest binding,
   recursive prior-state continuity, strict output binding, and allocation-free
   replay metadata.

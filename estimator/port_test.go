@@ -100,3 +100,29 @@ func TestExecutePropagatesEstimatorFailure(t *testing.T) {
 		t.Fatalf("expected estimator failure, got %v", err)
 	}
 }
+
+func TestResultValidationRejectsReplayDrift(t *testing.T) {
+	request, estimate, completedAt := estimatorFixture(t)
+	result, err := Execute(context.Background(), testPort{estimate: estimate}, request, completedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.Replay.ObservationDigest[0] = 0
+	result.Replay.ObservationDigest[1] = 0
+	result.Replay.ObservationDigest[2] = 0
+	if err = result.Validate(); !errors.Is(err, ErrResultInvalid) {
+		t.Fatalf("expected invalid stored result, got %v", err)
+	}
+}
+
+func TestResultValidationRejectsEstimateVersionDrift(t *testing.T) {
+	request, estimate, completedAt := estimatorFixture(t)
+	result, err := Execute(context.Background(), testPort{estimate: estimate}, request, completedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.Estimate.CalibrationVersion = "site-a-2026-09"
+	if err = result.Validate(); !errors.Is(err, ErrResultInvalid) {
+		t.Fatalf("expected estimate binding rejection, got %v", err)
+	}
+}
