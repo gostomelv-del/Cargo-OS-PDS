@@ -221,6 +221,12 @@ and covariance-trace limits to Object and Participant estimates. It returns a
 deterministic allocation-free failure bitmask suitable for fail-safe protocol
 decisions and independent replay.
 
+Floor transitions are evaluated separately from same-floor proximity. The
+operator binds `Δfloor` to the sign and Policy-calibrated magnitude of `ΔZ`,
+limits step count and elapsed time, requires estimator/calibration continuity,
+and fails closed on stale, future, low-confidence, or numerically overflowing
+state. Production evaluation is scalar and allocation-free.
+
 ## Run the HTTP API
 
 For a local, non-durable demonstration:
