@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"cargoos/estimator"
+	"cargoos/responsibility"
 	"cargoos/spatial"
 )
 
@@ -34,10 +35,14 @@ func TestPostgresEstimatorResultIsImmutableAndReplayable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	objectID, err := responsibility.NewPhysicalObjectID("integration-parcel-" + uuid.New().String())
+	if err != nil {
+		t.Fatal(err)
+	}
 	result := estimator.Result{
 		Estimate: estimateValue,
 		Replay: estimator.ReplayMetadata{
-			ObjectID: "integration-parcel-" + uuid.New().String(), Sequence: 1,
+			ObjectID: objectID, Sequence: 1,
 			ObservationID: uuid.New(), ObservationDigest: [32]byte{1, 2, 3, 4},
 			ObservedAt: observedAt, ReceivedAt: observedAt.Add(time.Second),
 			TargetFrame: estimateValue.Frame, ProfileID: estimateValue.ProfileID,
