@@ -2,7 +2,8 @@
 
 Status: controlling implementation delta  
 Audited repository: `gostomelv-del/Cargo-OS-PDS`  
-Audited baseline: `main` at `dacbb2bd89a4100f99f3c038cd64f2db4ab6b60c`
+Audited baseline: this change, based on `main` at
+`4deaa658129754c19740e2c686a905f753f6ccbf`
 
 ## 1. Status definitions
 
@@ -16,7 +17,7 @@ Audited baseline: `main` at `dacbb2bd89a4100f99f3c038cd64f2db4ab6b60c`
 
 | ID | Requirement | Status | Current evidence / closure |
 |---|---|---|---|
-| FM-01 | Exactly one responsible Participant per Object | Missing / Out of PDS scope | Add Responsibility aggregate, persistence, concurrency tests |
+| FM-01 | Exactly one responsible Participant per Object | Partial | Typed identifiers and an invariant-preserving in-memory Responsibility aggregate exist; persistence and concurrency closure remain |
 | FM-02 | Atomic responsibility handover | Missing / Out of PDS scope | Evaluation atomicity is not physical handover |
 | FM-03 | Immutable canonical observation | Implemented | `evidence/object.go`, canonical JSON, integrity, defensive snapshots |
 | FM-04 | Confidence in `[0,1]` | Implemented | Evidence validation and tests |

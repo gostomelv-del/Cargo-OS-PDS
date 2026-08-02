@@ -1,0 +1,169 @@
+package responsibility
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+)
+
+var (
+	ErrObjectIDRequired      = errors.New("responsibility: physical object ID is required")
+	ErrParticipantIDRequired = errors.New("responsibility: participant ID is required")
+	ErrAssignmentTime        = errors.New("responsibility: assignment time is required")
+	ErrInvalidSnapshot       = errors.New("responsibility: invalid snapshot")
+	ErrSameParticipant       = errors.New("responsibility: transfer target is already responsible")
+	ErrTransferTime          = errors.New("responsibility: transfer time must follow the current assignment")
+)
+
+type PhysicalObjectID string
+
+func NewPhysicalObjectID(value string) (PhysicalObjectID, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", ErrObjectIDRequired
+	}
+	return PhysicalObjectID(value), nil
+}
+
+func (id PhysicalObjectID) String() string { return string(id) }
+
+type ParticipantID string
+
+func NewParticipantID(value string) (ParticipantID, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", ErrParticipantIDRequired
+	}
+	return ParticipantID(value), nil
+}
+
+func (id ParticipantID) String() string { return string(id) }
+
+type Snapshot struct {
+	ObjectID      PhysicalObjectID `json:"object_id"`
+	ParticipantID ParticipantID    `json:"participant_id"`
+	Version       uint64           `json:"version"`
+	AssignedAt    time.Time        `json:"assigned_at"`
+}
+
+type TransferredEvent struct {
+	ObjectID          PhysicalObjectID `json:"object_id"`
+	FromParticipantID ParticipantID    `json:"from_participant_id"`
+	ToParticipantID   ParticipantID    `json:"to_participant_id"`
+	TransferredAt     time.Time        `json:"transferred_at"`
+	Version           uint64           `json:"version"`
+}
+
+type Aggregate struct {
+	objectID      PhysicalObjectID
+	participantID ParticipantID
+	version       uint64
+	assignedAt    time.Time
+	events        []TransferredEvent
+}
+
+// New establishes the mandatory initial responsibility. An Aggregate cannot
+// exist without exactly one Physical Object and exactly one Participant.
+func New(objectID PhysicalObjectID, participantID ParticipantID, assignedAt time.Time) (*Aggregate, error) {
+	snapshot := Snapshot{ObjectID: objectID, ParticipantID: participantID, Version: 1, AssignedAt: assignedAt.UTC()}
+	if err := validateSnapshot(snapshot); err != nil {
+		return nil, err
+	}
+	return &Aggregate{
+		objectID: snapshot.ObjectID, participantID: snapshot.ParticipantID,
+		version: snapshot.Version, assignedAt: snapshot.AssignedAt,
+	}, nil
+}
+
+func Rehydrate(snapshot Snapshot) (*Aggregate, error) {
+	snapshot.AssignedAt = snapshot.AssignedAt.UTC()
+	if err := validateSnapshot(snapshot); err != nil {
+		return nil, err
+	}
+	return &Aggregate{
+		objectID: snapshot.ObjectID, participantID: snapshot.ParticipantID,
+		version: snapshot.Version, assignedAt: snapshot.AssignedAt,
+	}, nil
+}
+
+// Transfer atomically replaces the sole responsible Participant. The previous
+// assignment remains unchanged when validation fails.
+func (aggregate *Aggregate) Transfer(to ParticipantID, transferredAt time.Time) error {
+	if aggregate == nil {
+		return ErrInvalidSnapshot
+	}
+	if err := validateParticipantID(to); err != nil {
+		return err
+	}
+	if to == aggregate.participantID {
+		return ErrSameParticipant
+	}
+	transferredAt = transferredAt.UTC()
+	if transferredAt.IsZero() || !transferredAt.After(aggregate.assignedAt) {
+		return ErrTransferTime
+	}
+	nextVersion := aggregate.version + 1
+	event := TransferredEvent{
+		ObjectID: aggregate.objectID, FromParticipantID: aggregate.participantID,
+		ToParticipantID: to, TransferredAt: transferredAt, Version: nextVersion,
+	}
+	aggregate.participantID = to
+	aggregate.assignedAt = transferredAt
+	aggregate.version = nextVersion
+	aggregate.events = append(aggregate.events, event)
+	return nil
+}
+
+func (aggregate *Aggregate) Snapshot() Snapshot {
+	if aggregate == nil {
+		return Snapshot{}
+	}
+	return Snapshot{
+		ObjectID: aggregate.objectID, ParticipantID: aggregate.participantID,
+		Version: aggregate.version, AssignedAt: aggregate.assignedAt,
+	}
+}
+
+func (aggregate *Aggregate) PendingEvents() []TransferredEvent {
+	if aggregate == nil || len(aggregate.events) == 0 {
+		return nil
+	}
+	return append([]TransferredEvent(nil), aggregate.events...)
+}
+
+func (aggregate *Aggregate) ClearPendingEvents() {
+	if aggregate != nil {
+		aggregate.events = nil
+	}
+}
+
+func validateSnapshot(snapshot Snapshot) error {
+	if snapshot.Version == 0 {
+		return ErrInvalidSnapshot
+	}
+	if err := validateObjectID(snapshot.ObjectID); err != nil {
+		return err
+	}
+	if err := validateParticipantID(snapshot.ParticipantID); err != nil {
+		return err
+	}
+	if snapshot.AssignedAt.IsZero() {
+		return ErrAssignmentTime
+	}
+	return nil
+}
+
+func validateObjectID(id PhysicalObjectID) error {
+	if id == "" || string(id) != strings.TrimSpace(string(id)) {
+		return fmt.Errorf("%w: %q", ErrObjectIDRequired, id)
+	}
+	return nil
+}
+
+func validateParticipantID(id ParticipantID) error {
+	if id == "" || string(id) != strings.TrimSpace(string(id)) {
+		return fmt.Errorf("%w: %q", ErrParticipantIDRequired, id)
+	}
+	return nil
+}
