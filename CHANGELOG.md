@@ -7,6 +7,9 @@ here.
 
 ### Added
 
+- Independent complete portable Proof-of-Handover verification across Bundle
+  signature, trusted timestamp, Decision replay certificate, audit lineage,
+  Responsibility Transfer, and both Participant signatures.
 - Mandatory trusted Ed25519 signatures from both outgoing and incoming
   Participants over the exact portable handover-proof binding.
 - Deterministic portable handover-proof binding across the responsibility
