@@ -38,7 +38,7 @@ Gostomelskii, supplied 2026-08-02)
 | FM-17 | Barometric profile | Research-dependent | Add compensation, floor map, multimodal corroboration |
 | FM-18 | Deterministic Policy execution | Implemented | Production Rule Operators and ordered rule plan |
 | FM-19 | Invalid Evidence fails closed | Implemented for PDS | Rejected/unavailable Evidence blocks execution/completion |
-| FM-20 | Mandatory physical `S_halt` | Partial / Out of PDS scope | Deterministic software HALT blocks commits and motion authorization; physical command interlock remains deployment work |
+| FM-20 | Mandatory physical `S_halt` | Implemented interlock contract / Out of PDS scope | Exact-Permit motion decisions fail closed and enter HALT on substitution or expiry; actuator translation and physical emergency-stop enforcement remain deployment work |
 | FM-21 | Responsibility retained in halt | Implemented for state machine | HALT preserves the last committed Responsibility snapshot and rejects commits |
 | FM-22 | Versioned halt recovery | Implemented for state machine | Recovery requires fresh admissible Evidence with explicit Policy/Evidence versions and exact responsibility binding |
 | FM-23 | Atomic state/outbox persistence | Implemented | Evaluation and Responsibility Unit of Work plus concurrent lease-based delivery |
