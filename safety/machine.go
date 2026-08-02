@@ -59,9 +59,9 @@ type Snapshot struct {
 }
 
 type Machine struct {
-	state          State
-	reason         Reason
-	responsibility responsibility.Snapshot
+	state             State
+	reason            Reason
+	responsibility    responsibility.Snapshot
 	proposed          responsibility.ParticipantID
 	verifiedPermit    Permit
 	hasVerifiedPermit bool
