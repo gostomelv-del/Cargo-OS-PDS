@@ -7,6 +7,9 @@ here.
 
 ### Added
 
+- Typed Physical Object and Participant identities with an invariant-preserving
+  Responsibility aggregate, deterministic transfer, snapshots, domain events,
+  and defensive state boundaries.
 - Normative Cargo OS Core Runtime mathematical model and implementation
   traceability matrix separating the current PDS boundary from future
   responsibility, spatial, probabilistic sensor-fusion, fail-safe halt, and
