@@ -213,8 +213,10 @@ and immutable event. A fixed-value portable proof binding joins that event and
 its exact audit lineage to an Evidence Bundle, Policy, and signed Verification
 Certificate without copying or traversing the archive. Participant signatures
 use two fixed outgoing/incoming roles, trusted Ed25519 keys, and exact
-Participant-to-signer identity matching. Independent portable handover
-verification remains a separate increment.
+Participant-to-signer identity matching. Complete portable verification
+rechecks Bundle integrity and signature, trusted timestamp, independent Decision
+replay and certificate, audit lineage, transfer binding, and both Participant
+signatures without trusting cached intermediate results.
 
 The `safety` package adds deterministic `IDLE`, `PROPOSED`, `VERIFIED`,
 `COMMITTED`, `REJECTED`, and `HALT` protocol states. Invalid, expired, or
