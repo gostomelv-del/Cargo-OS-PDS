@@ -3,7 +3,7 @@
 Status: controlling implementation delta  
 Audited repository: `gostomelv-del/Cargo-OS-PDS`  
 Audited baseline: this change, based on `main` at
-`0663e28d541be1afbed436944d4440004a46dac8`
+`112bceeb0ccde1858335ac42b1e1f88d29373870`
 
 ## 1. Status definitions
 
@@ -25,10 +25,10 @@ Audited baseline: this change, based on `main` at
 | FM-06 | Evidence TTL | Implemented | `MaxAge` and stale reason code |
 | FM-07 | Future timestamp tolerance | Implemented | `FutureTolerance` qualification |
 | FM-08 | Provenance/acquisition constraints | Implemented | Source, type, method, provenance, payload checks |
-| FM-09 | Position in declared 3D frame | Missing | Add spatial estimate and frame registry |
+| FM-09 | Position in declared 3D frame | Implemented contract | `spatial.Estimate` requires a declared frame, finite 3D position, floor, time, and versioned metadata; frame transforms remain future work |
 | FM-10 | Proximity `d <= d_max` | Missing | Add spatial operator, units, frame and boundary tests |
 | FM-11 | Discrete floor consistency | Missing | Add floor hypotheses and transition operator |
-| FM-12 | Covariance/bounded uncertainty | Missing | Scalar confidence alone is insufficient |
+| FM-12 | Covariance/bounded uncertainty | Implemented contract | Compact symmetric 3x3 covariance with finite and positive-semidefinite validation |
 | FM-13 | Bayesian estimator interface | Missing / Out of PDS scope | Define versioned estimator port and output snapshot |
 | FM-14 | Gaussian filter profile | Research-dependent | Calibrate models and matrices; validate datasets |
 | FM-15 | Particle filter profile | Research-dependent | Define likelihood, ESS, resampling, replay, benchmarks |
@@ -48,7 +48,7 @@ Audited baseline: this change, based on `main` at
 | FM-29 | Proof of Handover | Missing / Out of PDS scope | Bind physical before/after responsibility and transaction root |
 | FM-30 | Unified append-only hash chain | Partial | Immutable records and roots exist; `previousRoot` ledger does not |
 | FM-31 | Deterministic estimator replay | Partial | Decision replay exists; estimator metadata does not |
-| FM-32 | Matrix/NaN/infinity validation | Missing for estimator layer | Add numerical-safety package and tests |
+| FM-32 | Matrix/NaN/infinity validation | Implemented for spatial contract | Position, confidence, and covariance reject NaN/infinity; normalized PSD checks avoid determinant overflow |
 
 ## 3. Existing executable foundation
 
