@@ -46,7 +46,7 @@ func TestPortableHandoverProofRejectsArchiveAndSourceSubstitution(t *testing.T) 
 	if _, err := VerifyPortableHandoverProof(
 		context.Background(), proof.archive, modifiedEvent, proof.entry, proof.certificate, proof.signed,
 		proof.bundleTrust, proof.timestampTrust, proof.proofTrust, proof.verifiedAt,
-	); !errors.Is(err, ErrHandoverProofBindingInvalid) {
+	); !errors.Is(err, ErrPortableHandoverProofInvalid) {
 		t.Fatalf("expected source event substitution rejection, got %v", err)
 	}
 }
