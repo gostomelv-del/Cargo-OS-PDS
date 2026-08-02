@@ -214,7 +214,9 @@ its exact audit lineage to an Evidence Bundle, Policy, and signed Verification
 Certificate without copying or traversing the archive. Participant signatures
 use two fixed outgoing/incoming roles, trusted Ed25519 keys, and exact
 Participant-to-signer identity matching. Independent portable handover
-verification remains a separate increment.
+verification imports the archive, repeats Bundle, timestamp, Policy decision,
+and certificate checks, reconstructs the binding from source artifacts, and
+then verifies both Participant signatures without trusting stored derived data.
 
 The `safety` package adds deterministic `IDLE`, `PROPOSED`, `VERIFIED`,
 `COMMITTED`, `REJECTED`, and `HALT` protocol states. Invalid, expired, or

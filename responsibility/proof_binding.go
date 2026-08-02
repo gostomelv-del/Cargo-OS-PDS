@@ -49,16 +49,29 @@ func NewHandoverProofBinding(
 	manifest evidencebundle.Manifest,
 	certificate evidencebundle.VerificationCertificate,
 ) (HandoverProofBinding, error) {
-	transferRoot, err := TransferredEventRoot(event)
-	if err != nil || proofID == uuid.Nil || entry.Validate() != nil ||
-		entry.Kind != audit.RecordResponsibilityHandover || entry.RecordRoot != transferRoot ||
-		!entry.OccurredAt.Equal(event.TransferredAt.UTC().Truncate(time.Microsecond)) {
+	bundleRecord, err := evidencebundle.NewAuditRecord(manifest)
+	if err != nil {
 		return HandoverProofBinding{}, ErrHandoverProofBindingInvalid
 	}
-	bundleRecord, err := evidencebundle.NewAuditRecord(manifest)
-	if err != nil || certificate.CertificateID == uuid.Nil || certificate.BundleID != manifest.BundleID ||
-		certificate.EvaluationID != manifest.EvaluationID || certificate.BundleRoot != manifest.BundleRoot ||
-		certificate.Policy != manifest.Policy || certificate.IssuedAt.IsZero() ||
+	return NewHandoverProofBindingFromReference(proofID, event, entry, evidencebundle.BundleAuditReference{
+		Record: bundleRecord, Policy: manifest.Policy, BundleRoot: manifest.BundleRoot,
+	}, certificate)
+}
+
+func NewHandoverProofBindingFromReference(
+	proofID uuid.UUID,
+	event TransferredEvent,
+	entry audit.Entry,
+	reference evidencebundle.BundleAuditReference,
+	certificate evidencebundle.VerificationCertificate,
+) (HandoverProofBinding, error) {
+	transferRoot, err := TransferredEventRoot(event)
+	if err != nil || proofID == uuid.Nil || entry.Validate() != nil || reference.Validate() != nil ||
+		entry.Kind != audit.RecordResponsibilityHandover || entry.RecordRoot != transferRoot ||
+		!entry.OccurredAt.Equal(event.TransferredAt.UTC().Truncate(time.Microsecond)) ||
+		certificate.CertificateID == uuid.Nil || certificate.BundleID != reference.Record.BundleID ||
+		certificate.EvaluationID != reference.Record.EvaluationID || certificate.BundleRoot != reference.BundleRoot ||
+		certificate.Policy != reference.Policy || certificate.IssuedAt.IsZero() ||
 		certificate.IssuedAt.Before(event.TransferredAt) {
 		return HandoverProofBinding{}, ErrHandoverProofBindingInvalid
 	}
@@ -72,8 +85,9 @@ func NewHandoverProofBinding(
 		TransferVersion: event.Version, TransferredAt: event.TransferredAt.UTC().Truncate(time.Microsecond),
 		TransferRoot: transferRoot, AuditSequence: entry.Sequence,
 		AuditPreviousRoot: entry.PreviousRoot, AuditRoot: entry.Root,
-		BundleID: manifest.BundleID, EvaluationID: manifest.EvaluationID, SessionID: manifest.SessionID,
-		BundleRoot: bundleRecord.BundleRoot, PolicyHash: manifest.Policy.Hash,
+		BundleID: reference.Record.BundleID, EvaluationID: reference.Record.EvaluationID,
+		SessionID: reference.Record.SessionID, BundleRoot: reference.Record.BundleRoot,
+		PolicyHash:    reference.Policy.Hash,
 		CertificateID: certificate.CertificateID, CertificateRoot: sha256.Sum256(certificatePayload),
 		CertificateIssuedAt: certificate.IssuedAt.UTC().Truncate(time.Microsecond),
 	}

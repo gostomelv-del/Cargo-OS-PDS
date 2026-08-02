@@ -13,6 +13,7 @@ import (
 	"cargoos/evaluation"
 	"cargoos/evidence"
 	"cargoos/evidencebundle"
+	"cargoos/policy"
 )
 
 func TestHandoverProofBindingBindsTransferLedgerBundlePolicyAndCertificate(t *testing.T) {
@@ -64,6 +65,7 @@ type handoverProofTestFixture struct {
 	event       TransferredEvent
 	entry       audit.Entry
 	manifest    evidencebundle.Manifest
+	bundle      evidencebundle.Bundle
 	certificate evidencebundle.VerificationCertificate
 }
 
@@ -104,7 +106,8 @@ func handoverProofFixture(t *testing.T) handoverProofTestFixture {
 		Value: base64.StdEncoding.EncodeToString(make([]byte, ed25519.SignatureSize)),
 	}
 	return handoverProofTestFixture{
-		proofID: uuid.New(), event: event, entry: entry, manifest: manifest, certificate: certificate,
+		proofID: uuid.New(), event: event, entry: entry, manifest: manifest,
+		bundle: bundle, certificate: certificate,
 	}
 }
 
@@ -113,14 +116,23 @@ func handoverProofBundle(t *testing.T, manifest evidencebundle.Manifest) evidenc
 	evidenceID := uuid.New()
 	object, err := evidence.NewObject(evidence.Input{
 		EvidenceID: evidenceID, SessionID: manifest.SessionID,
-		SourceID: "handover-contact", SourceType: "CONTACT_SENSOR",
-		EvidenceType: evidence.TypeContact, ObservedAt: manifest.GeneratedAt.Add(-3 * time.Second),
-		ReceivedAt: manifest.GeneratedAt.Add(-2 * time.Second), Payload: json.RawMessage(`{"contact":true}`),
-		SchemaVersion: "evidence.v1", RuntimeVersion: "cargoos-pds.test", AcquisitionMethod: "CONTACT",
+		SourceID: "scale-17", SourceType: "WEIGHT_SENSOR",
+		EvidenceType: evidence.TypeWeight, ObservedAt: manifest.GeneratedAt.Add(-3 * time.Second),
+		ReceivedAt: manifest.GeneratedAt.Add(-2 * time.Second), Payload: json.RawMessage(`{"unit":"kg","value":25}`),
+		SchemaVersion: "evidence.v1", RuntimeVersion: "cargoos-pds.test", AcquisitionMethod: "HTTP",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	version, err := policy.NewVersion(policy.Input{
+		PolicyID: "handover", Version: "1", SchemaVersion: "policy.document.v1",
+		EffectiveFrom: manifest.GeneratedAt.Add(-4 * time.Second), RequiredRuleIDs: []string{"handover"},
+		Document: json.RawMessage(`{"evidence_qualification":{"version":"qualification.v1","trusted_sources":["scale-17"],"allowed_types":["WEIGHT"],"allowed_acquisition_methods":["HTTP"]},"rules":[{"rule_id":"handover","operator":"RANGE","selector":{"evidence_type":"WEIGHT","json_pointer":"/value"},"minimum":"0","maximum":"25"}]}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	policySnapshot := version.Snapshot()
 	trace := evaluation.DecisionTrace{
 		EvaluationID: manifest.EvaluationID, SessionID: manifest.SessionID, Version: 1,
 		State: evaluation.StateCompleted, Result: evaluation.ResultVerified,
@@ -136,14 +148,14 @@ func handoverProofBundle(t *testing.T, manifest evidencebundle.Manifest) evidenc
 			Evidence: []evaluation.EvidenceReference{{EvidenceID: evidenceID, Status: evaluation.EvidenceQualified}},
 		},
 		PolicyBinding: &evaluation.PolicyBinding{
-			PolicyID: manifest.Policy.PolicyID, Version: manifest.Policy.Version,
-			Hash: manifest.Policy.Hash, BoundAt: manifest.GeneratedAt.Add(-2 * time.Second),
+			PolicyID: policySnapshot.PolicyID, Version: policySnapshot.Version,
+			Hash: policySnapshot.Hash, BoundAt: manifest.GeneratedAt.Add(-2 * time.Second),
 		},
 	}
-	bundle, err := evidencebundle.Build(evidencebundle.BuildInput{
+	bundle, err := evidencebundle.BuildWithPolicySnapshot(evidencebundle.BuildInput{
 		BundleID: manifest.BundleID, GeneratedAt: manifest.GeneratedAt, Trace: trace,
 		Evidence: []evidence.Snapshot{object.Snapshot()},
-	})
+	}, policySnapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
