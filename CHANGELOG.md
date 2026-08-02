@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Atomic Evidence Bundle Root registration in the common audit ledger without
+  storing or traversing a second copy of the portable archive.
 - Atomic Evaluation snapshot, outbox, and audit-ledger commit for every
   aggregate version, with load-time typed-root verification.
 - Atomic responsibility handover and audit-ledger commit with a deterministic

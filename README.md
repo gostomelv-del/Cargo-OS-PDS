@@ -89,6 +89,10 @@ canonical manifest and its exact objects. Import enforces the fixed portable
 layout, size and entry limits, stored entries, canonical paths, and a complete
 manifest-to-object match before integrity verification. Independent decision
 verification and human-readable reports remain outside this package.
+A verified manifest can be reduced to a fixed-value audit record without
+re-reading archive objects. PostgreSQL atomically registers its existing Bundle
+Root in the common audit ledger, rejects duplicate Bundle IDs, and stores no
+second copy of the portable archive.
 The bundle signature profile binds the canonical manifest hash and Bundle Root
 to an explicit signer, key, algorithm, and signing time using domain-separated
 SHA-256 and Ed25519. Verification reuses the immutable Trust Store and enforces
@@ -246,9 +250,8 @@ The `audit` package defines a domain-separated SHA-256 chain entry that binds
 one typed record root, a monotonic sequence, occurrence time, and the exact
 previous ledger root. PostgreSQL serializes appends, rejects stale heads and
 forks at both repository and schema boundaries, and forbids update or deletion
-of committed entries. Evaluation, estimator-result, and
-responsibility-handover transactions are attached atomically; Evidence Bundle
-attachment remains separate.
+of committed entries. Evaluation, estimator-result, responsibility-handover,
+and Evidence Bundle roots are attached through durable atomic records.
 
 ## Run the HTTP API
 
