@@ -7,6 +7,9 @@ here.
 
 ### Added
 
+- Versioned estimator plug-in port with immutable Observation/digest binding,
+  recursive prior-state continuity, strict output binding, and allocation-free
+  replay metadata.
 - Deterministic floor-transition consistency with Policy-bounded steps,
   vertical direction/height, estimator continuity, confidence, time ordering,
   freshness, and future tolerance.
