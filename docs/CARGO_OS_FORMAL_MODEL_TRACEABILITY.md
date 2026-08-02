@@ -4,6 +4,8 @@ Status: controlling implementation delta
 Audited repository: `gostomelv-del/Cargo-OS-PDS`  
 Audited baseline: this change, based on `main` at
 `ac3a479ae60a7e12ddb66f99e58bfdc90f9d01f7`
+Source model: *Cargo OS Formal Mathematical Model v1.0* (Vladimir
+Gostomelskii, supplied 2026-08-02)
 
 ## 1. Status definitions
 
