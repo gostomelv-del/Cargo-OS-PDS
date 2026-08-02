@@ -73,6 +73,7 @@ func (s *Store) FindEvidenceBundleAudit(
 	var record evidencebundle.AuditRecord
 	var bundleRoot, auditRoot []byte
 	var kind sql.NullInt64
+	var storedBundleID, evaluationID, sessionID string
 	err := s.db.QueryRowContext(ctx, `
 		SELECT br.bundle_id, br.evaluation_id, br.session_id, br.generated_at,
 		       br.bundle_root, al.record_kind, al.record_root
@@ -80,7 +81,7 @@ func (s *Store) FindEvidenceBundleAudit(
 		  LEFT JOIN audit_ledger al ON al.sequence = br.audit_sequence
 		 WHERE br.bundle_id = $1
 	`, bundleID.String()).Scan(
-		&record.BundleID, &record.EvaluationID, &record.SessionID, &record.GeneratedAt,
+		&storedBundleID, &evaluationID, &sessionID, &record.GeneratedAt,
 		&bundleRoot, &kind, &auditRoot,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -91,6 +92,18 @@ func (s *Store) FindEvidenceBundleAudit(
 	}
 	if len(bundleRoot) != 32 || len(auditRoot) != 32 || !kind.Valid ||
 		audit.RecordKind(kind.Int64) != audit.RecordEvidenceBundle {
+		return evidencebundle.AuditRecord{}, evidencebundle.ErrAuditRecordInvalid
+	}
+	record.BundleID, err = uuid.Parse(storedBundleID)
+	if err != nil {
+		return evidencebundle.AuditRecord{}, evidencebundle.ErrAuditRecordInvalid
+	}
+	record.EvaluationID, err = uuid.Parse(evaluationID)
+	if err != nil {
+		return evidencebundle.AuditRecord{}, evidencebundle.ErrAuditRecordInvalid
+	}
+	record.SessionID, err = uuid.Parse(sessionID)
+	if err != nil {
 		return evidencebundle.AuditRecord{}, evidencebundle.ErrAuditRecordInvalid
 	}
 	record.BundleRoot = ([32]byte)(bundleRoot)
