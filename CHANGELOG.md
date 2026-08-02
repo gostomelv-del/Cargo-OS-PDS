@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Mandatory trusted Ed25519 signatures from both outgoing and incoming
+  Participants over the exact portable handover-proof binding.
 - Deterministic portable handover-proof binding across the responsibility
   transfer, audit lineage, Evidence Bundle, Policy, and Verification Certificate.
 - Atomic Evidence Bundle Root registration in the common audit ledger without
