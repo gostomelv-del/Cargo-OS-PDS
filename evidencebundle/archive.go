@@ -24,6 +24,7 @@ const (
 	ArchiveMediaType   = "application/vnd.cargoos.evidence-bundle+zip"
 	ManifestEntryPath  = "manifest.json"
 	SignatureEntryPath = "signature.json"
+	TimestampEntryPath = "timestamp.json"
 	ObjectEntryPrefix  = "objects/"
 	MaxArchiveSize     = 64 << 20
 	MaxArchiveEntries  = 4096
