@@ -75,7 +75,7 @@ func portableHandoverFixture(t *testing.T) (PortableHandoverProof, *policy.Memor
 		EvidenceID: evidenceID, SessionID: sessionID,
 		SourceID: "scale-17", SourceType: "WEIGHT_SENSOR", EvidenceType: evidence.TypeWeight,
 		ObservedAt: base, ReceivedAt: base.Add(time.Second),
-		Payload: json.RawMessage(`{"unit":"kg","value":25}`),
+		Payload:       json.RawMessage(`{"unit":"kg","value":25}`),
 		SchemaVersion: "evidence.v1", RuntimeVersion: "cargoos-pds.test", AcquisitionMethod: "HTTP",
 	})
 	if err != nil {
