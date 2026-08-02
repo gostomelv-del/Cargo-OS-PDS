@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"cargoos/audit"
 	"cargoos/responsibility"
 )
 
@@ -22,7 +23,11 @@ func (s *Store) CommitTransfer(
 	if err != nil {
 		return err
 	}
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	recordRoot, err := responsibility.TransferredEventRoot(event)
+	if err != nil {
+		return err
+	}
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return fmt.Errorf("postgres: begin responsibility transfer: %w", err)
 	}
@@ -37,13 +42,25 @@ func (s *Store) CommitTransfer(
 	if err = responsibilityWriteResult(result, err, "transfer"); err != nil {
 		return err
 	}
+	if err = lockAuditLedger(ctx, tx); err != nil {
+		return err
+	}
+	entry, err := nextAuditEntryLocked(
+		ctx, tx, audit.RecordResponsibilityHandover, recordRoot, event.TransferredAt,
+	)
+	if err != nil {
+		return err
+	}
+	if err = insertAuditEntry(ctx, tx, entry); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx, `
 		INSERT INTO responsibility_handover_events (
 			object_id, version, from_participant_id, to_participant_id,
-			transferred_at, delivery_status
-		) VALUES ($1, $2, $3, $4, $5, 'PENDING')
+			transferred_at, delivery_status, audit_sequence
+		) VALUES ($1, $2, $3, $4, $5, 'PENDING', $6)
 	`, event.ObjectID.String(), event.Version, event.FromParticipantID.String(),
-		event.ToParticipantID.String(), event.TransferredAt.UTC()); err != nil {
+		event.ToParticipantID.String(), event.TransferredAt.UTC(), entry.Sequence); err != nil {
 		return fmt.Errorf("postgres: append responsibility handover event: %w", err)
 	}
 	if err = tx.Commit(); err != nil {
@@ -61,19 +78,29 @@ func (s *Store) FindTransfer(
 		return responsibility.TransferredEvent{}, ErrDatabaseRequired
 	}
 	var event responsibility.TransferredEvent
+	var kind sql.NullInt64
+	var recordRoot []byte
 	err := s.db.QueryRowContext(ctx, `
-		SELECT object_id, from_participant_id, to_participant_id, transferred_at, version
-		  FROM responsibility_handover_events
-		 WHERE object_id = $1 AND version = $2
+		SELECT he.object_id, he.from_participant_id, he.to_participant_id,
+		       he.transferred_at, he.version, al.record_kind, al.record_root
+		  FROM responsibility_handover_events he
+		  LEFT JOIN audit_ledger al ON al.sequence = he.audit_sequence
+		 WHERE he.object_id = $1 AND he.version = $2
 	`, objectID.String(), version).Scan(
 		&event.ObjectID, &event.FromParticipantID, &event.ToParticipantID,
-		&event.TransferredAt, &event.Version,
+		&event.TransferredAt, &event.Version, &kind, &recordRoot,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return responsibility.TransferredEvent{}, responsibility.ErrTransferNotFound
 	}
 	if err != nil {
 		return responsibility.TransferredEvent{}, fmt.Errorf("postgres: find responsibility transfer: %w", err)
+	}
+	event.TransferredAt = event.TransferredAt.UTC()
+	wantRoot, err := responsibility.TransferredEventRoot(event)
+	if err != nil || !kind.Valid || audit.RecordKind(kind.Int64) != audit.RecordResponsibilityHandover ||
+		len(recordRoot) != 32 || wantRoot != ([32]byte)(recordRoot) {
+		return responsibility.TransferredEvent{}, responsibility.ErrTransferAuditInvalid
 	}
 	return event, nil
 }

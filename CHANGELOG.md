@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Atomic responsibility handover and audit-ledger commit with a deterministic
+  typed root binding Object, before/after Participants, version, and time.
 - Atomic estimator-result and audit-ledger commit with a typed SHA-256 record
   root, rollback-safe duplicate rejection, and binding verification on load.
 - Unified domain-separated audit hash-chain contract and immutable PostgreSQL

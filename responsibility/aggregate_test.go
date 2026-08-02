@@ -111,3 +111,26 @@ func TestPendingEventsAreDefensiveCopies(t *testing.T) {
 		t.Fatal("clearing events changed current responsibility")
 	}
 }
+
+func TestTransferredEventRootBindsHandoverFacts(t *testing.T) {
+	aggregate, assignedAt := responsibilityFixture(t)
+	if err := aggregate.Transfer("warehouse-3", assignedAt.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	event, ok := aggregate.PendingTransfer()
+	if !ok {
+		t.Fatal("expected transfer event")
+	}
+	root, err := TransferredEventRoot(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event.ToParticipantID = "hub-9"
+	changed, err := TransferredEventRoot(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if root == changed {
+		t.Fatal("handover fact change did not change root")
+	}
+}

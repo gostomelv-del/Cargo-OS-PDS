@@ -3,7 +3,7 @@
 Status: controlling implementation delta  
 Audited repository: `gostomelv-del/Cargo-OS-PDS`  
 Audited baseline: this change, based on `main` at
-`0e16aa962a3f457d8cedb9aaedaa7c702ddc9ee4`
+`38e07b541f3d144ea4338d5ef48a0bc9f992aaaa`
 
 ## 1. Status definitions
 
@@ -45,8 +45,8 @@ Audited baseline: this change, based on `main` at
 | FM-26 | Independent decision recalculation | Implemented | Offline production-rule replay |
 | FM-27 | Signature and trusted timestamp | Implemented in Cargo OS profile | RFC 3161 remains separate |
 | FM-28 | Signed Verification Certificate | Implemented | Canonical machine-readable certificate |
-| FM-29 | Proof of Handover | Missing / Out of PDS scope | Bind physical before/after responsibility and transaction root |
-| FM-30 | Unified append-only hash chain | Partial | Domain-separated ledger rejects forks and estimator results now commit atomically with a verified typed record root; Evaluation, Bundle, and handover attachment remain |
+| FM-29 | Proof of Handover | Partial / Out of PDS scope | Atomic handover root now binds Object, before/after Participants, version, and time; physical Evidence, Policy/decision, signer proof, and portable verification remain |
+| FM-30 | Unified append-only hash chain | Partial | Ledger rejects forks; estimator results and responsibility handovers commit atomically with verified typed roots; Evaluation and Bundle attachment remain |
 | FM-31 | Deterministic estimator replay | Partial | Exact replay metadata and immutable PostgreSQL result recording exist; deterministic execution of calibrated profiles remains research-dependent |
 | FM-32 | Matrix/NaN/infinity validation | Implemented for spatial contract | Position, confidence, and covariance reject NaN/infinity; normalized PSD checks avoid determinant overflow |
 

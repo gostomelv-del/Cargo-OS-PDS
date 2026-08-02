@@ -1,8 +1,11 @@
 package responsibility
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash"
 	"strings"
 	"time"
 )
@@ -14,6 +17,8 @@ var (
 	ErrInvalidSnapshot       = errors.New("responsibility: invalid snapshot")
 	ErrSameParticipant       = errors.New("responsibility: transfer target is already responsible")
 	ErrTransferTime          = errors.New("responsibility: transfer time must follow the current assignment")
+	ErrTransferEventInvalid  = errors.New("responsibility: transfer event is invalid")
+	ErrTransferAuditInvalid  = errors.New("responsibility: transfer audit binding is invalid")
 )
 
 type PhysicalObjectID string
@@ -53,6 +58,34 @@ type TransferredEvent struct {
 	ToParticipantID   ParticipantID    `json:"to_participant_id"`
 	TransferredAt     time.Time        `json:"transferred_at"`
 	Version           uint64           `json:"version"`
+}
+
+const transferRootDomain = "cargoos:responsibility-transfer:v1"
+
+func TransferredEventRoot(event TransferredEvent) ([32]byte, error) {
+	if err := validateTransferredEvent(event); err != nil {
+		return [32]byte{}, err
+	}
+	digest := sha256.New()
+	_, _ = digest.Write([]byte(transferRootDomain))
+	writeRootString(digest, event.ObjectID.String())
+	writeRootString(digest, event.FromParticipantID.String())
+	writeRootString(digest, event.ToParticipantID.String())
+	var scalar [8]byte
+	binary.BigEndian.PutUint64(scalar[:], event.Version)
+	_, _ = digest.Write(scalar[:])
+	binary.BigEndian.PutUint64(scalar[:], uint64(event.TransferredAt.UnixMicro()))
+	_, _ = digest.Write(scalar[:])
+	var root [32]byte
+	digest.Sum(root[:0])
+	return root, nil
+}
+
+func writeRootString(digest hash.Hash, value string) {
+	var size [8]byte
+	binary.BigEndian.PutUint64(size[:], uint64(len(value)))
+	_, _ = digest.Write(size[:])
+	_, _ = digest.Write([]byte(value))
 }
 
 type Aggregate struct {
@@ -176,6 +209,23 @@ func validateObjectID(id PhysicalObjectID) error {
 func validateParticipantID(id ParticipantID) error {
 	if id == "" || string(id) != strings.TrimSpace(string(id)) {
 		return fmt.Errorf("%w: %q", ErrParticipantIDRequired, id)
+	}
+	return nil
+}
+
+func validateTransferredEvent(event TransferredEvent) error {
+	if event.Version < 2 || event.FromParticipantID == event.ToParticipantID ||
+		event.TransferredAt.IsZero() {
+		return ErrTransferEventInvalid
+	}
+	if err := validateObjectID(event.ObjectID); err != nil {
+		return ErrTransferEventInvalid
+	}
+	if err := validateParticipantID(event.FromParticipantID); err != nil {
+		return ErrTransferEventInvalid
+	}
+	if err := validateParticipantID(event.ToParticipantID); err != nil {
+		return ErrTransferEventInvalid
 	}
 	return nil
 }

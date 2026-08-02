@@ -154,10 +154,7 @@ func ValidateTransferCommit(
 		!event.TransferredAt.Equal(normalized.AssignedAt) {
 		return Snapshot{}, ErrInvalidTransferCommit
 	}
-	if err = validateParticipantID(event.FromParticipantID); err != nil {
-		return Snapshot{}, ErrInvalidTransferCommit
-	}
-	if err = validateParticipantID(event.ToParticipantID); err != nil {
+	if err = validateTransferredEvent(event); err != nil {
 		return Snapshot{}, ErrInvalidTransferCommit
 	}
 	return normalized, nil

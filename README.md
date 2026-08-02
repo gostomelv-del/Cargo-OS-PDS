@@ -199,8 +199,10 @@ PostgreSQL repositories durably retain the sole assignment and reject stale
 concurrent writers. The Responsibility service atomically commits each handover
 with an immutable pending delivery event. PostgreSQL workers claim pending
 events with bounded leases and `SKIP LOCKED`, publish them once, and recover
-expired locks. Halt-state interlocks and Proof of Handover remain separate
-increments.
+expired locks. Each PostgreSQL handover now hashes its exact Object,
+before/after Participants, version, and transfer time and commits that typed
+root to the common audit ledger in the same transaction as the sole assignment
+and immutable event. Physical Proof of Handover remains a separate increment.
 
 The `safety` package adds deterministic `IDLE`, `PROPOSED`, `VERIFIED`,
 `COMMITTED`, `REJECTED`, and `HALT` protocol states. Invalid, expired, or
@@ -243,8 +245,8 @@ previous ledger root. PostgreSQL serializes appends, rejects stale heads and
 forks at both repository and schema boundaries, and forbids update or deletion
 of committed entries. Atomic attachment of Evaluation, estimator, and handover
 transactions to this common ledger remains a separate integration increment.
-Estimator-result transactions are the first source now attached atomically;
-Evaluation, Evidence Bundle, and handover attachment remain separate.
+Estimator-result and responsibility-handover transactions are now attached
+atomically; Evaluation and Evidence Bundle attachment remain separate.
 
 ## Run the HTTP API
 
