@@ -7,6 +7,9 @@ here.
 
 ### Added
 
+- Deterministic floor-transition consistency with Policy-bounded steps,
+  vertical direction/height, estimator continuity, confidence, time ordering,
+  freshness, and future tolerance.
 - Allocation-free deterministic spatial admissibility with frame compatibility,
   confidence, TTL/future tolerance, overflow-safe proximity, floor consistency,
   covariance bounds, and a compact failure bitmask.
