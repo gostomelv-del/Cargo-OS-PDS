@@ -45,7 +45,7 @@ Audited baseline: this change, based on `main` at
 | FM-26 | Independent decision recalculation | Implemented | Offline production-rule replay |
 | FM-27 | Signature and trusted timestamp | Implemented in Cargo OS profile | RFC 3161 remains separate |
 | FM-28 | Signed Verification Certificate | Implemented | Canonical machine-readable certificate |
-| FM-29 | Proof of Handover | Partial / Out of PDS scope | The portable binding now requires trusted Ed25519 signatures from both outgoing and incoming Participant identities; independent verification of the complete portable handover package remains |
+| FM-29 | Proof of Handover | Implemented in Cargo OS profile | Independent portable verification imports the signed/timestamped Bundle, repeats Policy decision and certificate checks, reconstructs the audit-bound handover root, and verifies both Participant signatures |
 | FM-30 | Unified append-only hash chain | Implemented for durable PDS records | Ledger rejects forks and atomically records verified typed roots for Evaluation versions, estimator results, responsibility handovers, and Evidence Bundles |
 | FM-31 | Deterministic estimator replay | Partial | Exact replay metadata and immutable PostgreSQL result recording exist; deterministic execution of calibrated profiles remains research-dependent |
 | FM-32 | Matrix/NaN/infinity validation | Implemented for spatial contract | Position, confidence, and covariance reject NaN/infinity; normalized PSD checks avoid determinant overflow |

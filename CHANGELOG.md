@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Independent end-to-end verification of the complete portable Proof of
+  Handover from its signed/timestamped archive and source audit artifacts.
 - Mandatory trusted Ed25519 signatures from both outgoing and incoming
   Participants over the exact portable handover-proof binding.
 - Deterministic portable handover-proof binding across the responsibility
