@@ -110,7 +110,13 @@ the Policy through the domain model, requires its ID, version, and calculated
 hash to match the final Decision Trace binding, and places the exact snapshot
 under the Bundle Root. Reference-only bundle construction remains available for
 backward compatibility. Independent Rule Outcome recalculation remains
-separate work.
+available through the fail-closed offline verifier. It rehydrates the exact
+Policy and Evidence Objects from the Bundle, recompiles every required Rule
+Operator with the production Policy compiler, executes the ordered rule plan,
+compares status and reason codes with the stored Rule Outcomes, independently
+derives the final verification result, and returns an auditable verification
+report. Expired and otherwise non-completed decisions remain outside this
+initial recalculation profile.
 The in-memory Policy Registry stores immutable canonical policy versions,
 rejects overlapping effective periods, and resolves exactly one version at the
 Evaluation creation time. Resolution binds the resulting policy identity and

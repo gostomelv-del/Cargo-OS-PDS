@@ -32,6 +32,9 @@ here.
 - Complete immutable Policy Snapshot embedding with canonical document,
   required-rule plan, effective period, hash rehydration, Decision Trace
   binding, and portable archive round-trip verification.
+- Fail-closed independent offline decision verification using the embedded
+  Policy Snapshot, exact Evidence Objects, production Rule Operator compiler,
+  recalculated Rule Outcomes, and independently derived final result.
 
 ## [0.1.0-alpha] - 2026-07-26
 
