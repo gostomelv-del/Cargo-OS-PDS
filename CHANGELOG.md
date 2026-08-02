@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Concurrent Responsibility handover delivery with bounded claims, worker
+  leases, `SKIP LOCKED`, publication ownership, and expired-lock recovery.
 - Atomic Responsibility handover commits that update the sole assignment and
   append an immutable delivery event in one memory or PostgreSQL operation.
 - Versioned memory and PostgreSQL Responsibility repositories with optimistic
