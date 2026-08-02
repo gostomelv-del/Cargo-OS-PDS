@@ -7,6 +7,8 @@ here.
 
 ### Added
 
+- Hardware-independent deterministic motion interlock that binds commands to
+  the exact verified Permit and enters HALT on substitution or expiry.
 - Independent complete portable Proof-of-Handover verification across Bundle
   signature, trusted timestamp, Decision replay certificate, audit lineage,
   Responsibility Transfer, and both Participant signatures.

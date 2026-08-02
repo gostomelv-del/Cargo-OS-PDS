@@ -59,10 +59,12 @@ type Snapshot struct {
 }
 
 type Machine struct {
-	state          State
-	reason         Reason
-	responsibility responsibility.Snapshot
-	proposed       responsibility.ParticipantID
+	state             State
+	reason            Reason
+	responsibility    responsibility.Snapshot
+	proposed          responsibility.ParticipantID
+	verifiedPermit    Permit
+	hasVerifiedPermit bool
 }
 
 func NewMachine(current responsibility.Snapshot) (*Machine, error) {
@@ -101,6 +103,7 @@ func (machine *Machine) Propose(to responsibility.ParticipantID) error {
 		machine.reason = ReasonInvalidTransition
 		return ErrInvalidTransition
 	}
+	machine.clearVerifiedPermit()
 	machine.proposed = to
 	machine.state = StateProposed
 	machine.reason = ReasonNone
@@ -116,6 +119,10 @@ func (machine *Machine) Verify(permit Permit, now time.Time) error {
 		machine.enterHalt(reason)
 		return ErrInvalidPermit
 	}
+	permit.EvaluatedAt = permit.EvaluatedAt.UTC()
+	permit.ValidUntil = permit.ValidUntil.UTC()
+	machine.verifiedPermit = permit
+	machine.hasVerifiedPermit = true
 	machine.state = StateVerified
 	machine.reason = ReasonNone
 	return nil
@@ -144,6 +151,7 @@ func (machine *Machine) Commit(
 	}
 	machine.responsibility = updated
 	machine.proposed = ""
+	machine.clearVerifiedPermit()
 	machine.state = StateCommitted
 	machine.reason = ReasonNone
 	return updated, nil
@@ -166,6 +174,7 @@ func (machine *Machine) Recover(permit Permit, now time.Time) error {
 		return ErrInvalidPermit
 	}
 	machine.proposed = ""
+	machine.clearVerifiedPermit()
 	machine.state = StateIdle
 	machine.reason = ReasonNone
 	return nil
@@ -194,6 +203,12 @@ func (machine *Machine) enterHalt(reason Reason) {
 		return
 	}
 	machine.proposed = ""
+	machine.clearVerifiedPermit()
 	machine.state = StateHalt
 	machine.reason = reason
+}
+
+func (machine *Machine) clearVerifiedPermit() {
+	machine.verifiedPermit = Permit{}
+	machine.hasVerifiedPermit = false
 }

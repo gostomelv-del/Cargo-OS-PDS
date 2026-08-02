@@ -222,8 +222,11 @@ The `safety` package adds deterministic `IDLE`, `PROPOSED`, `VERIFIED`,
 `COMMITTED`, `REJECTED`, and `HALT` protocol states. Invalid, expired, or
 misbound authorization fails closed, `HALT` retains the last committed
 Participant and rejects handover commits, and recovery requires fresh
-admissible Evidence bound to explicit Policy and Evidence versions. A physical
-motion interlock adapter remains deployment-specific Core Runtime work.
+admissible Evidence bound to explicit Policy and Evidence versions. A pure,
+hardware-independent motion interlock now emits a fixed allow/deny decision only
+from the exact stored Permit in `VERIFIED`; substituted or expired requests enter
+`HALT`. Translation of an allowed decision into actuator commands remains a
+deployment-specific adapter.
 
 The `spatial` package defines the estimator-output boundary without selecting a
 sensor-fusion algorithm: a declared coordinate frame, finite 3D position,
