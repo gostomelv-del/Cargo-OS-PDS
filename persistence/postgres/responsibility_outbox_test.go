@@ -13,7 +13,9 @@ func TestPostgresResponsibilityOutboxLeaseRecoveryAndPublication(t *testing.T) {
 	_, store := openIntegrationStore(t)
 	ctx := context.Background()
 	objectID := integrationResponsibilityID(t, "delivery")
-	assignedAt := time.Date(2026, 8, 2, 14, 0, 0, 0, time.UTC)
+	// Use an isolated historical window: ClaimResponsibilityTransfers correctly
+	// sees every pending event in the shared integration database.
+	assignedAt := time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC)
 	aggregate, err := responsibility.New(objectID, "vehicle-7", assignedAt)
 	if err != nil {
 		t.Fatal(err)
