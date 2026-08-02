@@ -215,6 +215,12 @@ discrete floor, confidence, observation time, estimator/calibration versions,
 and a compact symmetric positive-semidefinite covariance. Its production
 validation uses fixed scalar fields with no heap-backed matrix rows or loops.
 
+Spatial admissibility applies Policy-bound confidence, freshness/future
+tolerance, frame compatibility, overflow-safe 3D proximity, floor consistency,
+and covariance-trace limits to Object and Participant estimates. It returns a
+deterministic allocation-free failure bitmask suitable for fail-safe protocol
+decisions and independent replay.
+
 ## Run the HTTP API
 
 For a local, non-durable demonstration:

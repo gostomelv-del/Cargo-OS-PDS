@@ -3,7 +3,7 @@
 Status: controlling implementation delta  
 Audited repository: `gostomelv-del/Cargo-OS-PDS`  
 Audited baseline: this change, based on `main` at
-`112bceeb0ccde1858335ac42b1e1f88d29373870`
+`78f043fe3708b40b28130f01460c77cf69980f87`
 
 ## 1. Status definitions
 
@@ -26,8 +26,8 @@ Audited baseline: this change, based on `main` at
 | FM-07 | Future timestamp tolerance | Implemented | `FutureTolerance` qualification |
 | FM-08 | Provenance/acquisition constraints | Implemented | Source, type, method, provenance, payload checks |
 | FM-09 | Position in declared 3D frame | Implemented contract | `spatial.Estimate` requires a declared frame, finite 3D position, floor, time, and versioned metadata; frame transforms remain future work |
-| FM-10 | Proximity `d <= d_max` | Missing | Add spatial operator, units, frame and boundary tests |
-| FM-11 | Discrete floor consistency | Missing | Add floor hypotheses and transition operator |
+| FM-10 | Proximity `d <= d_max` | Implemented contract | Frame-compatible overflow-safe Euclidean proximity with exact boundary tests and deterministic failure mask |
+| FM-11 | Discrete floor consistency | Partial | Exact Object/Participant floor equality is enforced; calibrated floor-transition hypotheses remain estimator-profile work |
 | FM-12 | Covariance/bounded uncertainty | Implemented contract | Compact symmetric 3x3 covariance with finite and positive-semidefinite validation |
 | FM-13 | Bayesian estimator interface | Missing / Out of PDS scope | Define versioned estimator port and output snapshot |
 | FM-14 | Gaussian filter profile | Research-dependent | Calibrate models and matrices; validate datasets |
