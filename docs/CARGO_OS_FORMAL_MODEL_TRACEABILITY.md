@@ -3,7 +3,7 @@
 Status: controlling implementation delta  
 Audited repository: `gostomelv-del/Cargo-OS-PDS`  
 Audited baseline: this change, based on `main` at
-`1a341e1cd0bae30adb59d02a24f32035c5c8666e`
+`236c5e20c133194562df1b6eb4c51c6bff190b3a`
 
 ## 1. Status definitions
 
@@ -47,7 +47,7 @@ Audited baseline: this change, based on `main` at
 | FM-28 | Signed Verification Certificate | Implemented | Canonical machine-readable certificate |
 | FM-29 | Proof of Handover | Missing / Out of PDS scope | Bind physical before/after responsibility and transaction root |
 | FM-30 | Unified append-only hash chain | Partial | Immutable records and roots exist; `previousRoot` ledger does not |
-| FM-31 | Deterministic estimator replay | Partial | Exact fixed-value replay metadata now exists; durable estimator result recording and profile execution remain |
+| FM-31 | Deterministic estimator replay | Partial | Exact replay metadata and immutable PostgreSQL result recording exist; deterministic execution of calibrated profiles remains research-dependent |
 | FM-32 | Matrix/NaN/infinity validation | Implemented for spatial contract | Position, confidence, and covariance reject NaN/infinity; normalized PSD checks avoid determinant overflow |
 
 ## 3. Existing executable foundation

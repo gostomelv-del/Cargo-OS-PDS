@@ -231,8 +231,10 @@ The `estimator` package is the hardware- and algorithm-neutral plug-in boundary
 for recursive sensor fusion. Each single-observation request binds one Physical
 Object, sequence, immutable Observation UUID/digest, optional prior Estimate,
 target frame, and exact profile/calibration versions. Outputs are revalidated
-and returned with fixed-value replay metadata; no filter implementation is
-embedded in PDS.
+and returned with fixed-value replay metadata. PostgreSQL stores each result as
+an immutable `(ObjectID, sequence)` record, rejects duplicate execution, and
+revalidates the complete replay binding when loading it. No filter
+implementation is embedded in PDS.
 
 ## Run the HTTP API
 

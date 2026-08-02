@@ -27,6 +27,7 @@ func TestEmbeddedMigrationNamesAreSorted(t *testing.T) {
 		"0007_responsibility_snapshots.sql",
 		"0008_responsibility_handover.sql",
 		"0009_responsibility_outbox_delivery.sql",
+		"0010_estimator_results.sql",
 	}
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("expected %v, got %v", want, names)
