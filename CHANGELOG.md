@@ -7,6 +7,11 @@ here.
 
 ### Added
 
+- Deterministic Responsibility safety state machine with fail-safe HALT,
+  retained responsibility, fresh versioned-Evidence recovery, and stale
+  authorization rejection.
+- Allocation-free pending handover storage on the transfer/commit hot path;
+  defensive slices are created only for explicit collection access.
 - Concurrent Responsibility handover delivery with bounded claims, worker
   leases, `SKIP LOCKED`, publication ownership, and expired-lock recovery.
 - Atomic Responsibility handover commits that update the sole assignment and

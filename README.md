@@ -202,6 +202,13 @@ events with bounded leases and `SKIP LOCKED`, publish them once, and recover
 expired locks. Halt-state interlocks and Proof of Handover remain separate
 increments.
 
+The `safety` package adds deterministic `IDLE`, `PROPOSED`, `VERIFIED`,
+`COMMITTED`, `REJECTED`, and `HALT` protocol states. Invalid, expired, or
+misbound authorization fails closed, `HALT` retains the last committed
+Participant and rejects handover commits, and recovery requires fresh
+admissible Evidence bound to explicit Policy and Evidence versions. A physical
+motion interlock adapter remains deployment-specific Core Runtime work.
+
 ## Run the HTTP API
 
 For a local, non-durable demonstration:
